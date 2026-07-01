@@ -6,8 +6,7 @@ service cloud.firestore {
     }
     
     function getUserOfficeId() {
-      // Allow read if user document doesn't exist yet (for initial creation)
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
         ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.officeId
         : '';
     }
@@ -30,7 +29,23 @@ service cloud.firestore {
     }
 
     match /leads/{leadId} {
-      allow create: if (isAuthenticated() && getUserOfficeId() == request.resource.data.officeId) || request.resource.data.createdVia == 'public_form';
+      allow create: if (isAuthenticated() && getUserOfficeId() == request.resource.data.officeId) || (
+        request.resource.data.createdVia == 'public_form' &&
+        request.resource.data.officeId is string && request.resource.data.officeId != '' &&
+        request.resource.data.publicFormSlug is string && request.resource.data.publicFormSlug != '' &&
+        request.resource.data.consentLgpd == true &&
+        request.resource.data.status == 'Novo contato' &&
+        request.resource.data.priority == 'Média' &&
+        request.resource.data.name is string && request.resource.data.name != '' &&
+        request.resource.data.phone is string && request.resource.data.phone != '' &&
+        request.resource.data.summary is string && request.resource.data.summary != '' &&
+        !('cpf' in request.resource.data) &&
+        !('rg' in request.resource.data) &&
+        !('numeroProcesso' in request.resource.data) &&
+        !('documentos' in request.resource.data) &&
+        !('files' in request.resource.data) &&
+        !('attachments' in request.resource.data)
+      );
       allow read, update, delete: if isAuthenticated() && getUserOfficeId() == resource.data.officeId;
     }
 

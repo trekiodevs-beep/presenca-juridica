@@ -216,13 +216,17 @@ export const createLead = async (lead: Omit<Lead, 'id' | 'createdAt' | 'updatedA
     await setDoc(newLeadRef, newLead);
     
     // Auto create event
-    await addLeadEvent({
-      officeId: lead.officeId,
-      leadId: newLeadRef.id,
-      type: 'created',
-      description: 'Lead criado no sistema',
-      createdBy: lead.responsibleUserId || 'Sistema'
-    });
+    try {
+      await addLeadEvent({
+        officeId: lead.officeId,
+        leadId: newLeadRef.id,
+        type: 'created',
+        description: lead.createdVia === 'public_form' ? 'Lead criado a partir do formulário público' : 'Lead criado no sistema',
+        createdBy: lead.createdVia === 'public_form' ? 'public_form' : (lead.responsibleUserId || 'Sistema')
+      });
+    } catch (eventError) {
+      console.warn('Failed to auto-create lead event, but lead was created:', eventError);
+    }
     
     return newLeadRef.id;
   } catch (error) {

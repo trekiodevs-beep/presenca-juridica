@@ -83,21 +83,21 @@ export interface Lead {
   area: LegalArea;
   status: LeadStatus;
   priority: Priority;
-  responsibleUserId?: string;
+  responsibleUserId?: string | null;
   summary: string;
   notes: string;
   consentLgpd: boolean;
-  nextActionText?: string;
-  nextActionAt?: string;
-  lastWhatsappClickAt?: string;
+  nextActionText?: string | null;
+  nextActionAt?: string | null;
+  lastWhatsappClickAt?: string | null;
   createdAt: string;
   updatedAt: string;
-  archivedAt?: string;
-  createdVia?: string;
-  publicFormSlug?: string;
-  utmSource?: string;
-  utmMedium?: string;
-  utmCampaign?: string;
+  archivedAt?: string | null;
+  createdVia?: string | null;
+  publicFormSlug?: string | null;
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
 }
 
 export interface LeadEvent {

@@ -83,31 +83,24 @@ export const PublicForm = () => {
         source: source as any,
         status: 'Novo contato' as const,
         priority: 'Média' as const,
+        responsibleUserId: null,
+        nextActionText: null,
+        nextActionAt: null,
+        lastWhatsappClickAt: null,
         createdVia: 'public_form',
         publicFormSlug: officeSlug,
-        utmSource: searchParams.get('utm_source') || undefined,
-        utmMedium: searchParams.get('utm_medium') || undefined,
-        utmCampaign: searchParams.get('utm_campaign') || undefined,
+        utmSource: searchParams.get('utm_source') || null,
+        utmMedium: searchParams.get('utm_medium') || null,
+        utmCampaign: searchParams.get('utm_campaign') || null,
+        archivedAt: null,
       };
 
-      const leadId = await createLead(leadData as any); // cast for now to avoid strict type issues with optionals
+      await createLead(leadData as any);
       
-      try {
-        await addLeadEvent({
-          officeId: officeForm.officeId,
-          leadId: leadId,
-          type: 'created',
-          description: 'Lead criado a partir do formulário público.',
-          createdBy: 'public_form'
-        });
-      } catch (e) {
-        console.warn('Could not create lead event, continuing');
-      }
-
       setSuccess(true);
-    } catch (err) {
-      console.error(err);
-      alert('Erro ao enviar contato. Tente novamente mais tarde.');
+    } catch (err: any) {
+      console.error('Falha ao enviar formulário público:', err?.message || err);
+      alert('Não foi possível enviar agora. Confira sua conexão e tente novamente.');
     } finally {
       setSubmitting(false);
     }
