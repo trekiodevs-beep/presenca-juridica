@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserOfficeId() {
+      // Allow read if user document doesn't exist yet (for initial creation)
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.officeId
+        : '';
+    }
+
+    match /users/{userId} {
+      // Users can only read and write their own profile
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    match /offices/{officeId} {
+      // Any authenticated user can create an office (during onboarding)
+      allow create: if isAuthenticated();
+      // Users can only read/update/delete their own office
+      allow read, update, delete: if isAuthenticated() && getUserOfficeId() == officeId;
+    }
+
+    match /publicForms/{slug} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /leads/{leadId} {
+      allow create: if (isAuthenticated() && getUserOfficeId() == request.resource.data.officeId) || request.resource.data.createdVia == 'public_form';
+      allow read, update, delete: if isAuthenticated() && getUserOfficeId() == resource.data.officeId;
+    }
+
+    match /leadEvents/{eventId} {
+      allow create: if (isAuthenticated() && getUserOfficeId() == request.resource.data.officeId) || request.resource.data.createdBy == 'public_form';
+      allow read, update, delete: if isAuthenticated() && getUserOfficeId() == resource.data.officeId;
+    }
+
+    match /tasks/{taskId} {
+      allow create: if isAuthenticated() && getUserOfficeId() == request.resource.data.officeId;
+      allow read, update, delete: if isAuthenticated() && getUserOfficeId() == resource.data.officeId;
+    }
+  }
+}

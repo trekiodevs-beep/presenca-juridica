@@ -1,0 +1,6 @@
+{
+  "name": "CRM Presença Jurídica",
+  "description": "CRM Inteligente para organização de contatos em escritórios de advocacia.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

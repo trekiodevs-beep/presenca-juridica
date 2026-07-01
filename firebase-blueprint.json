@@ -1,0 +1,94 @@
+{
+  "collections": [
+    {
+      "name": "users",
+      "documentId": "userId",
+      "description": "User profiles",
+      "fields": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "photoURL": { "type": "string", "optional": true },
+        "role": { "type": "string" },
+        "officeId": { "type": "string", "optional": true },
+        "createdAt": { "type": "timestamp" },
+        "updatedAt": { "type": "timestamp" }
+      }
+    },
+    {
+      "name": "offices",
+      "documentId": "officeId",
+      "description": "Law offices",
+      "fields": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "lawyerName": { "type": "string" },
+        "oab": { "type": "string" },
+        "city": { "type": "string" },
+        "state": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "email": { "type": "string" },
+        "areas": { "type": "array" },
+        "createdAt": { "type": "timestamp" },
+        "updatedAt": { "type": "timestamp" }
+      }
+    },
+    {
+      "name": "leads",
+      "documentId": "leadId",
+      "description": "Leads",
+      "fields": {
+        "id": { "type": "string" },
+        "officeId": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "city": { "type": "string", "optional": true },
+        "state": { "type": "string", "optional": true },
+        "source": { "type": "string" },
+        "area": { "type": "string" },
+        "status": { "type": "string" },
+        "priority": { "type": "string" },
+        "responsibleUserId": { "type": "string", "optional": true },
+        "summary": { "type": "string", "optional": true },
+        "notes": { "type": "string", "optional": true },
+        "consentLgpd": { "type": "boolean" },
+        "nextActionText": { "type": "string", "optional": true },
+        "nextActionAt": { "type": "timestamp", "optional": true },
+        "lastWhatsappClickAt": { "type": "timestamp", "optional": true },
+        "createdAt": { "type": "timestamp" },
+        "updatedAt": { "type": "timestamp" },
+        "archivedAt": { "type": "timestamp", "optional": true }
+      }
+    },
+    {
+      "name": "leadEvents",
+      "documentId": "eventId",
+      "description": "Lead events history",
+      "fields": {
+        "id": { "type": "string" },
+        "officeId": { "type": "string" },
+        "leadId": { "type": "string" },
+        "type": { "type": "string" },
+        "description": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "timestamp" }
+      }
+    },
+    {
+      "name": "tasks",
+      "documentId": "taskId",
+      "description": "Tasks",
+      "fields": {
+        "id": { "type": "string" },
+        "officeId": { "type": "string" },
+        "leadId": { "type": "string" },
+        "title": { "type": "string" },
+        "dueAt": { "type": "timestamp" },
+        "done": { "type": "boolean" },
+        "createdAt": { "type": "timestamp" },
+        "completedAt": { "type": "timestamp", "optional": true }
+      }
+    }
+  ]
+}
