@@ -221,7 +221,7 @@ export const createLead = async (lead: Omit<Lead, 'id' | 'createdAt' | 'updatedA
         officeId: lead.officeId,
         leadId: newLeadRef.id,
         type: 'created',
-        description: lead.createdVia === 'public_form' ? 'Lead criado a partir do formulário público' : 'Lead criado no sistema',
+        description: lead.createdVia === 'public_form' ? 'Contato criado a partir do formulário público' : 'Contato criado no sistema',
         createdBy: lead.createdVia === 'public_form' ? 'public_form' : (lead.responsibleUserId || 'Sistema')
       });
     } catch (eventError) {

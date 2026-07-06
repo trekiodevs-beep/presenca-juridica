@@ -10,7 +10,7 @@ export const Sidebar = ({ collapsed = false }: { collapsed?: boolean }) => {
 
   const navItems = [
     { name: 'Hoje', path: '/', icon: LayoutDashboard },
-    { name: 'Leads', path: '/leads', icon: Users },
+    { name: 'Contatos', path: '/leads', icon: Users },
     { name: 'Novo Contato', path: '/leads/new', icon: PlusCircle },
     { name: 'Canais', path: '/canais', icon: RouteIcon },
     { name: 'Dashboard', path: '/dashboard', icon: Briefcase },

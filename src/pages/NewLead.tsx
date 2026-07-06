@@ -68,7 +68,7 @@ export const NewLead = () => {
       setSuccessLeadId(newLead || 'unknown');
     } catch (err) {
       console.error(err);
-      setError('Ocorreu um erro ao salvar o lead. Tente novamente.');
+      setError('Ocorreu um erro ao salvar o contato. Tente novamente.');
     } finally {
       setLoading(false);
     }

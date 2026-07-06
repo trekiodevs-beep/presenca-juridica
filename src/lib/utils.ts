@@ -43,14 +43,21 @@ export const humanizeSource = (source?: string | null): string => {
   if (!source) return 'por outro canal';
   const lower = source.trim().toLowerCase();
   switch (lower) {
-    case 'whatsapp':
-      return 'pelo WhatsApp';
-    case 'instagram':
-      return 'pelo Instagram';
-    case 'site':
-      return 'pelo site';
+    case 'formulário público':
+    case 'formulario publico':
+    case 'public_form':
+      return 'pelo formulário público';
+    case 'teste do formulário público':
+    case 'teste do formulario publico':
+      return 'pelo formulário público de teste';
     case 'landing page':
       return 'pela landing page';
+    case 'instagram':
+      return 'pelo Instagram';
+    case 'whatsapp':
+      return 'pelo WhatsApp';
+    case 'site':
+      return 'pelo site';
     case 'indicação':
     case 'indicacao':
       return 'por indicação';

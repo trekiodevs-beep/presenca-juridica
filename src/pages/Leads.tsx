@@ -50,7 +50,7 @@ export const Leads = () => {
     <div className={cn("space-y-6 mx-auto px-4 sm:px-6 pb-12", viewMode === 'kanban' ? 'max-w-[1600px]' : 'max-w-7xl')}>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Leads e Contatos</h1>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Contatos</h1>
           <p className="text-slate-500 mt-1 text-sm">Acompanhe todos os contatos recebidos e mantenha cada próximo passo registrado.</p>
         </div>
         

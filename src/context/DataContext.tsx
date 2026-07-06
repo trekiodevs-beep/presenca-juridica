@@ -73,7 +73,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       addEvent({
         leadId: newLead.id,
         type: 'created',
-        description: 'Lead criado via sistema',
+        description: 'Contato criado via sistema',
         createdBy: user?.id || 'u1'
       });
       return;

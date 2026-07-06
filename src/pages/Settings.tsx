@@ -5,7 +5,7 @@ import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { createOffice, updateOffice as dbUpdateOffice, updatePublicForm } from '../services/db';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, Building2, MessageSquare, ShieldAlert, Link as LinkIcon } from 'lucide-react';
+import { CheckCircle2, Building2, MessageSquare, ShieldAlert, Link as LinkIcon, Copy, ExternalLink, Globe } from 'lucide-react';
 
 const DEFAULT_AREAS = ['Direito de Família', 'Direito Trabalhista', 'Direito do Consumidor', 'Direito Empresarial'];
 
@@ -14,6 +14,14 @@ export const Settings = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const handleCopyText = (text: string, key: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
+
   const [formData, setFormData] = useState({
     name: '',
     lawyerName: '',
@@ -193,6 +201,75 @@ export const Settings = () => {
                   <LinkIcon className="w-3.5 h-3.5" />
                   Link público do seu formulário de contato. Use apenas letras minúsculas, números e hífen.
                 </p>
+
+                {(formData.slug || office?.slug) && (
+                  <div className="mt-6 p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
+                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Links Plug and Play Prontos</h4>
+                    
+                    {/* Link 1: Página Pública */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs font-medium text-slate-700">
+                        <span className="flex items-center gap-1 font-semibold text-slate-900">
+                          <Globe className="w-3.5 h-3.5 text-indigo-600" />
+                          Página Pública do Escritório
+                        </span>
+                        <div className="flex gap-2">
+                          <button 
+                            type="button"
+                            onClick={() => handleCopyText(`${window.location.origin}/o/${formData.slug || office?.slug}`, 'pub')}
+                            className="text-brand-700 hover:text-brand-900 flex items-center gap-1 font-semibold"
+                          >
+                            {copiedKey === 'pub' ? 'Link copiado com sucesso.' : 'Copiar'}
+                          </button>
+                          <span className="text-slate-300">|</span>
+                          <a 
+                            href={`${window.location.origin}/o/${formData.slug || office?.slug}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-brand-700 hover:text-brand-900 flex items-center gap-1 font-semibold"
+                          >
+                            Abrir
+                          </a>
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-500 font-mono bg-white p-2 rounded border border-slate-100 truncate">
+                        {`${window.location.origin}/o/${formData.slug || office?.slug}`}
+                      </p>
+                    </div>
+
+                    {/* Link 2: Formulário Direto */}
+                    <div className="space-y-1.5 pt-1">
+                      <div className="flex items-center justify-between text-xs font-medium text-slate-700">
+                        <span className="flex items-center gap-1 font-semibold text-slate-900">
+                          <LinkIcon className="w-3.5 h-3.5 text-brand-700" />
+                          Formulário Direto
+                        </span>
+                        <div className="flex gap-2">
+                          <button 
+                            type="button"
+                            onClick={() => handleCopyText(`${window.location.origin}/public/${formData.slug || office?.slug}/contact`, 'form')}
+                            className="text-brand-700 hover:text-brand-900 flex items-center gap-1 font-semibold"
+                          >
+                            {copiedKey === 'form' ? 'Link copiado com sucesso.' : 'Copiar'}
+                          </button>
+                          <span className="text-slate-300">|</span>
+                          <a 
+                            href={`${window.location.origin}/public/${formData.slug || office?.slug}/contact`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-brand-700 hover:text-brand-900 flex items-center gap-1 font-semibold"
+                          >
+                            Abrir
+                          </a>
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-500 font-mono bg-white p-2 rounded border border-slate-100 truncate">
+                        {`${window.location.origin}/public/${formData.slug || office?.slug}/contact`}
+                      </p>
+                    </div>
+
+                  </div>
+                )}
               </div>
             </div>
 

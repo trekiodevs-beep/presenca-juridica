@@ -98,7 +98,7 @@ export const Dashboard = () => {
           <CardContent className="p-6 flex flex-col gap-3">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-amber-50 rounded-lg text-amber-600"><Clock className="w-5 h-5" /></div>
-              <p className="text-sm font-medium text-slate-500">Aguardando Triagem</p>
+              <p className="text-sm font-medium text-slate-500">Triagem pendente</p>
             </div>
             <p className="text-3xl font-bold text-slate-900">{waitingTriage}</p>
           </CardContent>
@@ -128,7 +128,7 @@ export const Dashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
         <Card className="border-slate-200 shadow-sm">
           <CardHeader className="bg-slate-50 border-b border-slate-100 py-4">
-            <CardTitle className="text-base text-brand-900">Leads por Área Jurídica</CardTitle>
+            <CardTitle className="text-base text-brand-900">Contatos por Área Jurídica</CardTitle>
           </CardHeader>
           <CardContent className="h-80 p-6">
             <ResponsiveContainer width="100%" height="100%">

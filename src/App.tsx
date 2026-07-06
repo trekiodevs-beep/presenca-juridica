@@ -17,6 +17,7 @@ import { NewLead } from './pages/NewLead';
 import { Dashboard } from './pages/Dashboard';
 import { Settings } from './pages/Settings';
 import { PublicForm } from './pages/PublicForm';
+import { OfficePublicPage } from './pages/OfficePublicPage';
 import { Channels } from './pages/Channels';
 
 export default function App() {
@@ -27,6 +28,7 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/public/:officeSlug/contact" element={<PublicForm />} />
+            <Route path="/o/:officeSlug" element={<OfficePublicPage />} />
             
             <Route path="/" element={<Layout />}>
               <Route index element={<Hoje />} />

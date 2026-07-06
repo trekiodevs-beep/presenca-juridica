@@ -93,6 +93,16 @@ export const LeadDetail = () => {
     return lead.responsibleUserId;
   };
 
+  const getSuggestedNextAction = () => {
+    if (lead.nextActionText) return lead.nextActionText;
+    if (lead.status === 'Novo contato') return 'Realizar triagem inicial pelo WhatsApp.';
+    if (lead.status === 'Aguardando triagem') return 'Confirmar dados iniciais e registrar a primeira anotação.';
+    if (lead.status === 'Aguardando informações') return 'Acompanhar retorno do cliente.';
+    return null;
+  };
+
+  const suggestedAction = getSuggestedNextAction();
+
   // Humanized and natural WhatsApp message template
   const formattedSource = humanizeSource(lead.source);
   const whatsappMessage = `Olá, ${lead.name.split(' ')[0]}. Tudo bem?\n\nRecebemos seu contato ${formattedSource} sobre uma dúvida na área de ${lead.area}.\n\nPara organizar melhor o atendimento inicial, gostaria de confirmar algumas informações antes de encaminhar para análise da pessoa responsável.\n\nVocê poderia me informar brevemente o contexto da sua dúvida?`;
@@ -148,7 +158,7 @@ export const LeadDetail = () => {
       {/* Top Navigation */}
       <div className="flex items-center gap-2 mb-2">
         <Link to="/leads" className="text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors">
-          Leads e Contatos
+          Contatos
         </Link>
         <ChevronRight className="w-4 h-4 text-slate-400" />
         <span className="text-sm font-medium text-slate-900">Detalhes</span>
@@ -186,12 +196,17 @@ export const LeadDetail = () => {
               </h2>
               
               <div className="mb-6">
-                {lead.nextActionText ? (
+                {suggestedAction ? (
                   <>
                     <p className="text-xl sm:text-2xl font-bold leading-tight mb-2 text-white">
-                      {lead.nextActionText}
+                      {suggestedAction}
                     </p>
-                    {lead.nextActionAt && (
+                    {!lead.nextActionText && (
+                      <p className="text-brand-300 text-xs italic font-medium">
+                        Sugestão automática de ação
+                      </p>
+                    )}
+                    {lead.nextActionText && lead.nextActionAt && (
                       <p className="text-brand-200 font-mono text-sm flex items-center gap-2">
                         <Calendar className="w-4 h-4" /> Agendado para: {formatDateTime(lead.nextActionAt)}
                       </p>

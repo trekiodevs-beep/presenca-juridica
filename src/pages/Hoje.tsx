@@ -28,7 +28,7 @@ export const Hoje = () => {
   const scheduledConsultations = leads.filter(l => l.status === 'Consulta agendada').length;
 
   const statCards = [
-    { title: 'Aguardando Triagem', value: waitingTriage, icon: Clock, color: 'text-amber-600', bgColor: 'bg-amber-50' },
+    { title: 'Triagem pendente', value: waitingTriage, icon: Clock, color: 'text-amber-600', bgColor: 'bg-amber-50' },
     { title: 'Retornos Vencidos', value: delayedActions, icon: AlertCircle, color: 'text-red-600', bgColor: 'bg-red-50' },
     { title: 'Próximas Ações (Hoje)', value: actionsToday, icon: CheckCircle2, color: 'text-emerald-600', bgColor: 'bg-emerald-50' },
     { title: 'Sem Responsável', value: withoutResponsible, icon: Users, color: 'text-slate-600', bgColor: 'bg-slate-100' },
@@ -151,8 +151,28 @@ export const Hoje = () => {
             <Link to="/canais" className="text-sm font-medium text-brand-600 hover:text-brand-700">Ver canais</Link>
           </div>
           
-          <Card className="border-slate-200 shadow-sm overflow-hidden h-[300px]">
-            <CardContent className="p-0 divide-y divide-slate-100">
+          <Card className="border-slate-200 shadow-sm overflow-hidden flex flex-col justify-between min-h-[300px]">
+            <CardContent className="p-0 divide-y divide-slate-100 flex-1">
+              
+              {/* Página Pública */}
+              <div className="p-4 flex items-start gap-3">
+                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg shrink-0">
+                  <RouteIcon className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-slate-900 truncate">Página Pública</p>
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${office?.slug ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                      {office?.slug ? 'Ativa' : 'Inativa'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5 truncate font-mono">
+                    {office?.slug ? `/o/${office.slug}` : 'Configure um slug'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Formulário Público */}
               <div className="p-4 flex items-start gap-3">
                 <div className="p-2 bg-brand-50 text-brand-600 rounded-lg shrink-0">
                   <LinkIcon className="w-5 h-5" />
@@ -160,16 +180,17 @@ export const Hoje = () => {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-medium text-slate-900 truncate">Formulário Público</p>
-                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${office?.slug ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
-                      {office?.slug ? 'Ativo' : 'Não conf.'}
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${office?.slug ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                      {office?.slug ? 'Ativo' : 'Inativo'}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 mt-0.5 truncate">
-                    {office?.slug ? `/public/${office.slug}/contact` : 'Configure em Configurações'}
+                  <p className="text-xs text-slate-500 mt-0.5 truncate font-mono">
+                    {office?.slug ? `/public/${office.slug}/contact` : 'Configure um slug'}
                   </p>
                 </div>
               </div>
 
+              {/* WhatsApp */}
               <div className="p-4 flex items-start gap-3">
                 <div className="p-2 bg-[#25D366]/10 text-[#25D366] rounded-lg shrink-0">
                   <Smartphone className="w-5 h-5" />
@@ -187,21 +208,13 @@ export const Hoje = () => {
                 </div>
               </div>
 
-              <div className="p-4 flex items-start gap-3 opacity-60">
-                <div className="p-2 bg-slate-100 text-slate-400 rounded-lg shrink-0">
-                  <MonitorSmartphone className="w-5 h-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium text-slate-900 truncate">Landing Page</p>
-                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
-                      Pronto para int.
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-0.5">Use o link do formulário</p>
-                </div>
-              </div>
             </CardContent>
+            
+            <div className="p-4 bg-slate-50 border-t border-slate-100">
+              <Button asChild className="w-full bg-brand-700 hover:bg-brand-800 text-sm h-10">
+                <Link to="/canais">Ver canais</Link>
+              </Button>
+            </div>
           </Card>
         </div>
       </div>
