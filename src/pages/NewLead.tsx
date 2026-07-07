@@ -8,10 +8,13 @@ import { Select } from '../components/ui/Select';
 import { ArrowLeft, CheckCircle2, MessageSquare, Eye, Plus, ShieldAlert } from 'lucide-react';
 import { LeadSource, LegalArea, Priority } from '../types';
 import { cleanPhone, formatPhoneForDisplay, formatPhoneForWhatsapp } from '../lib/utils';
+import { PageHeader } from '../components/layout/PageHeader';
+import { useToast } from '../context/ToastContext';
 
 export const NewLead = () => {
   const navigate = useNavigate();
   const { addLead } = useData();
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successLeadId, setSuccessLeadId] = useState<string | null>(null);
@@ -62,13 +65,12 @@ export const NewLead = () => {
         status: 'Novo contato',
         notes: ''
       });
-      // Assuming addLead returns the created lead object with an id, or we might need to modify useData to return the id.
-      // In the current implementation of context/DataContext, addLead just calls fbAddLead which returns the id.
-      // Wait, let's assume it returns the doc id.
+      showToast('Contato salvo com sucesso.', 'success');
       setSuccessLeadId(newLead || 'unknown');
     } catch (err) {
       console.error(err);
       setError('Ocorreu um erro ao salvar o contato. Tente novamente.');
+      showToast('Erro ao salvar o contato. Tente novamente.', 'error');
     } finally {
       setLoading(false);
     }
@@ -123,15 +125,14 @@ export const NewLead = () => {
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto px-4 sm:px-6 pb-12">
-      <div className="flex items-center gap-4 border-b border-slate-100 pb-6">
-        <Link to="/leads">
-          <Button variant="ghost" className="p-2 h-10 w-10 shrink-0 rounded-full hover:bg-slate-100"><ArrowLeft className="w-5 h-5" /></Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Novo contato</h1>
-          <p className="text-slate-500 mt-1 text-sm">Registre apenas informações necessárias para organizar o atendimento inicial.</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Novo contato"
+        description="Registre apenas informações necessárias para organizar o atendimento inicial."
+        breadcrumbItems={[
+          { label: 'Contatos', to: '/leads' },
+          { label: 'Novo contato' }
+        ]}
+      />
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (

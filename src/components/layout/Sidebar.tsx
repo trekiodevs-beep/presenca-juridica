@@ -1,17 +1,25 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, PlusCircle, Settings, LogOut, Briefcase, Route as RouteIcon } from 'lucide-react';
+import { LayoutDashboard, Users, PlusCircle, Settings, LogOut, Briefcase, Route as RouteIcon, Compass } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { cn } from '../../lib/utils';
 
-export const Sidebar = ({ collapsed = false }: { collapsed?: boolean }) => {
+export const Sidebar = ({ 
+  collapsed = false,
+  mobileOpen = false,
+  onCloseMobile
+}: { 
+  collapsed?: boolean;
+  mobileOpen?: boolean;
+  onCloseMobile?: () => void;
+}) => {
   const { pathname } = useLocation();
   const { logout } = useAuth();
 
   const navItems = [
+    { name: 'Primeiros passos', path: '/onboarding', icon: Compass },
     { name: 'Hoje', path: '/', icon: LayoutDashboard },
     { name: 'Contatos', path: '/leads', icon: Users },
-    { name: 'Novo Contato', path: '/leads/new', icon: PlusCircle },
     { name: 'Canais', path: '/canais', icon: RouteIcon },
     { name: 'Dashboard', path: '/dashboard', icon: Briefcase },
     { name: 'Configurações', path: '/settings', icon: Settings },
@@ -19,11 +27,12 @@ export const Sidebar = ({ collapsed = false }: { collapsed?: boolean }) => {
 
   return (
     <aside className={cn(
-      "bg-brand-900 text-slate-300 flex flex-col h-full border-r border-brand-800 hidden md:flex transition-all duration-300",
-      collapsed ? "w-20" : "w-64"
+      "bg-brand-900 text-slate-300 flex flex-col h-full border-r border-brand-800 transition-all duration-300 shrink-0",
+      mobileOpen ? "w-full" : (collapsed ? "w-20" : "w-64"),
+      !mobileOpen && "hidden md:flex"
     )}>
-      <div className={cn("flex py-6 border-b border-brand-800", collapsed ? "flex-col items-center px-2" : "flex-col px-6")}>
-        <div className={cn("flex items-center", collapsed ? "justify-center" : "gap-3")}>
+      <div className={cn("flex py-6 border-b border-brand-800", (collapsed && !mobileOpen) ? "flex-col items-center px-2" : "flex-col px-6")}>
+        <div className={cn("flex items-center", (collapsed && !mobileOpen) ? "justify-center" : "gap-3")}>
           <img 
             src="/atom_simbolo_transparente_clean.png" 
             alt="Logo" 
@@ -33,7 +42,7 @@ export const Sidebar = ({ collapsed = false }: { collapsed?: boolean }) => {
               e.currentTarget.parentElement?.insertAdjacentHTML('afterbegin', '<div class="w-7 h-7 shrink-0 bg-brand-700 rounded-md flex items-center justify-center"><span class="text-white text-xs font-bold">A</span></div>');
             }}
           />
-          {!collapsed && (
+          {(!collapsed || mobileOpen) && (
             <div className="flex flex-col overflow-hidden">
               <h1 className="text-white font-semibold text-base tracking-tight leading-tight truncate">
                 Presença Jurídica
@@ -45,6 +54,21 @@ export const Sidebar = ({ collapsed = false }: { collapsed?: boolean }) => {
       </div>
 
       <nav className="flex-1 py-6 px-3 space-y-1">
+        <div className="mb-6 px-1">
+          <Link
+            to="/leads/new"
+            onClick={onCloseMobile}
+            title={collapsed ? "Novo contato" : undefined}
+            className={cn(
+              "flex items-center gap-3 py-2.5 rounded-md transition-colors text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700",
+              (collapsed && !mobileOpen) ? "justify-center px-0" : "px-3"
+            )}
+          >
+            <PlusCircle className="w-5 h-5 shrink-0" />
+            {(!collapsed || mobileOpen) && <span>Novo contato</span>}
+          </Link>
+        </div>
+
         {navItems.map((item) => {
           const isActive = pathname === item.path || (item.path !== '/' && pathname.startsWith(item.path) && item.path !== '/leads');
           // Fix logic for /leads matching
@@ -55,16 +79,17 @@ export const Sidebar = ({ collapsed = false }: { collapsed?: boolean }) => {
               key={item.name}
               to={item.path}
               title={collapsed ? item.name : undefined}
+              onClick={onCloseMobile}
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors text-sm font-medium",
                 isReallyActive 
                   ? "bg-brand-800 text-white" 
                   : "hover:bg-brand-800/50 hover:text-white",
-                collapsed && "justify-center"
+                (collapsed && !mobileOpen) && "justify-center"
               )}
             >
               <item.icon className={cn("w-5 h-5 shrink-0", isReallyActive ? "text-brand-100" : "text-slate-400")} />
-              {!collapsed && <span className="truncate">{item.name}</span>}
+              {(!collapsed || mobileOpen) && <span className="truncate">{item.name}</span>}
             </Link>
           );
         })}
@@ -72,17 +97,20 @@ export const Sidebar = ({ collapsed = false }: { collapsed?: boolean }) => {
 
       <div className="p-4 border-t border-brand-800 space-y-4">
         <button
-          onClick={logout}
+          onClick={() => {
+            if (onCloseMobile) onCloseMobile();
+            logout();
+          }}
           title={collapsed ? "Sair" : undefined}
           className={cn(
-            "flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors text-sm font-medium hover:bg-brand-800/50 hover:text-white w-full",
-            collapsed ? "justify-center" : "text-left"
+            "flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors text-sm font-medium hover:bg-brand-800/50 hover:text-white w-full cursor-pointer",
+            (collapsed && !mobileOpen) ? "justify-center" : "text-left"
           )}
         >
           <LogOut className="w-5 h-5 shrink-0 text-slate-400" />
-          {!collapsed && <span>Sair</span>}
+          {(!collapsed || mobileOpen) && <span>Sair</span>}
         </button>
-        {!collapsed && (
+        {(!collapsed || mobileOpen) && (
           <div className="px-3">
             <p className="text-[10px] text-brand-400 font-medium tracking-wide">
               TrekIO + ATOM

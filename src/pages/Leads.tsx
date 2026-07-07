@@ -1,23 +1,35 @@
 import React, { useState } from 'react';
 import { useData } from '../context/DataContext';
 import { Link } from 'react-router-dom';
-import { Search, Filter, MessageSquare, ChevronRight, Plus, Users, Clock, AlertCircle, LayoutList, Kanban as KanbanIcon } from 'lucide-react';
+import { Search, MessageSquare, ChevronRight, Plus, Users, LayoutList, Kanban as KanbanIcon } from 'lucide-react';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Button } from '../components/ui/Button';
 import { StatusBadge, PriorityBadge } from '../components/ui/Badge';
 import { KanbanBoard } from '../components/leads/KanbanBoard';
+import { PageHeader } from '../components/layout/PageHeader';
+import { useToast } from '../context/ToastContext';
 import { formatPhoneForDisplay, formatPhoneForWhatsapp, formatDateTime } from '../lib/utils';
 import { isToday, isPast, parseISO } from 'date-fns';
 import { cn } from '../lib/utils';
 
 export const Leads = () => {
   const { leads, loading } = useData();
+  const { showToast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [areaFilter, setAreaFilter] = useState('');
   const [quickFilter, setQuickFilter] = useState('all');
-  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
+  
+  const [viewMode, setViewMode] = useState<'kanban' | 'list'>(() => {
+    return (localStorage.getItem('crm_contacts_view_mode') as 'kanban' | 'list') || 'list';
+  });
+
+  const handleSetViewMode = (mode: 'kanban' | 'list') => {
+    setViewMode(mode);
+    localStorage.setItem('crm_contacts_view_mode', mode);
+    showToast(`Visualização em ${mode === 'list' ? 'Lista' : 'Kanban'} salva.`, 'info');
+  };
 
   const filteredLeads = leads.filter(lead => {
     const matchesSearch = lead.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -40,46 +52,56 @@ export const Leads = () => {
   });
 
   const getQuickFilterClass = (val: string) => 
-    `px-4 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+    `px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
       quickFilter === val 
         ? 'bg-brand-900 text-white shadow-sm' 
         : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
     }`;
 
+  const headerActions = (
+    <div className="flex items-center gap-3">
+      <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200">
+        <button 
+          onClick={() => handleSetViewMode('kanban')}
+          className={cn(
+            "p-1.5 rounded-md transition-colors cursor-pointer", 
+            viewMode === 'kanban' ? "bg-white shadow-sm text-brand-700" : "text-slate-500 hover:text-slate-700"
+          )}
+          title="Visualização em Kanban"
+          aria-label="Visualização em Kanban"
+        >
+          <KanbanIcon className="w-4 h-4" />
+        </button>
+        <button 
+          onClick={() => handleSetViewMode('list')}
+          className={cn(
+            "p-1.5 rounded-md transition-colors cursor-pointer", 
+            viewMode === 'list' ? "bg-white shadow-sm text-brand-700" : "text-slate-500 hover:text-slate-700"
+          )}
+          title="Visualização em Lista"
+          aria-label="Visualização em Lista"
+        >
+          <LayoutList className="w-4 h-4" />
+        </button>
+      </div>
+      
+      <Button asChild className="gap-2 shrink-0 h-10 shadow-sm font-semibold cursor-pointer">
+        <Link to="/leads/new">
+          <Plus className="w-4 h-4" />
+          Novo contato
+        </Link>
+      </Button>
+    </div>
+  );
+
   return (
     <div className={cn("space-y-6 mx-auto px-4 sm:px-6 pb-12", viewMode === 'kanban' ? 'max-w-[1600px]' : 'max-w-7xl')}>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Contatos</h1>
-          <p className="text-slate-500 mt-1 text-sm">Acompanhe todos os contatos recebidos e mantenha cada próximo passo registrado.</p>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <div className="flex items-center bg-slate-100 p-1 rounded-lg">
-            <button 
-              onClick={() => setViewMode('kanban')}
-              className={cn("p-1.5 rounded-md transition-colors", viewMode === 'kanban' ? "bg-white shadow-sm text-brand-700" : "text-slate-500 hover:text-slate-700")}
-              title="Visualização em Kanban"
-            >
-              <KanbanIcon className="w-4 h-4" />
-            </button>
-            <button 
-              onClick={() => setViewMode('list')}
-              className={cn("p-1.5 rounded-md transition-colors", viewMode === 'list' ? "bg-white shadow-sm text-brand-700" : "text-slate-500 hover:text-slate-700")}
-              title="Visualização em Lista"
-            >
-              <LayoutList className="w-4 h-4" />
-            </button>
-          </div>
-          
-          <Button asChild className="gap-2 shrink-0 h-10 shadow-sm">
-            <Link to="/leads/new">
-              <Plus className="w-4 h-4" />
-              Novo contato
-            </Link>
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Contatos"
+        description="Acompanhe todos os contatos recebidos e mantenha cada próximo passo registrado."
+        breadcrumbItems={[{ label: 'Contatos' }]}
+        actions={headerActions}
+      />
 
       {/* Quick Filters */}
       <div className="flex overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 hide-scrollbar gap-2">
@@ -171,73 +193,155 @@ export const Leads = () => {
       ) : viewMode === 'kanban' ? (
         <KanbanBoard leads={filteredLeads} />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredLeads.map((lead) => (
-            <div key={lead.id} className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md transition-all flex flex-col group relative">
-              
-              <div className="flex justify-between items-start mb-3">
-                <StatusBadge status={lead.status} />
-                <PriorityBadge priority={lead.priority} />
-              </div>
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-xs font-semibold uppercase tracking-wider">
+                  <th className="px-6 py-4">Nome</th>
+                  <th className="px-6 py-4">Área</th>
+                  <th className="px-6 py-4">Origem</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4">Prioridade</th>
+                  <th className="px-6 py-4">Próxima Ação</th>
+                  <th className="px-6 py-4 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
+                {filteredLeads.map((lead) => (
+                  <tr key={lead.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-brand-50 text-brand-700 flex items-center justify-center font-bold text-xs shrink-0 border border-brand-100">
+                          {lead.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <Link to={`/leads/${lead.id}`} className="font-semibold text-slate-900 hover:text-brand-700 transition-colors">
+                            {lead.name}
+                          </Link>
+                          {lead.email && <div className="text-xs text-slate-400 mt-0.5">{lead.email}</div>}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap font-medium">{lead.area}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="inline-flex items-center rounded-md bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-500/10">
+                        {lead.source}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <StatusBadge status={lead.status} />
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <PriorityBadge priority={lead.priority} />
+                    </td>
+                    <td className="px-6 py-4">
+                      {lead.nextActionText ? (
+                        <div className="max-w-[200px]">
+                          <p className="font-semibold text-slate-700 truncate">{lead.nextActionText}</p>
+                          {lead.nextActionAt && (
+                            <p className="text-[11px] text-slate-400 mt-0.5 font-mono">{formatDateTime(lead.nextActionAt)}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-2">
+                        <button 
+                          className="text-[#25D366] hover:bg-[#25D366]/10 p-1.5 rounded-lg transition-colors cursor-pointer"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            const waPhone = formatPhoneForWhatsapp(lead.phone);
+                            if (waPhone) {
+                              window.open(`https://wa.me/${waPhone}`, '_blank');
+                            } else {
+                              showToast('Telefone inválido ou não informado.', 'error');
+                            }
+                          }}
+                          title="Conversar no WhatsApp"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                        </button>
+                        <Link 
+                          to={`/leads/${lead.id}`} 
+                          className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                          title="Abrir detalhes"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-              <div className="mb-4">
-                <Link to={`/leads/${lead.id}`} className="block">
-                  <h3 className="font-bold text-slate-900 text-lg group-hover:text-brand-700 transition-colors line-clamp-1">{lead.name}</h3>
-                </Link>
-                <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
-                  <span>{lead.area}</span>
-                  <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                  <span>{lead.source}</span>
-                </div>
-              </div>
-
-              <div className="space-y-2 mb-5 flex-1">
-                <div className="text-sm text-slate-600 flex items-center justify-between bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
-                  <span className="font-mono">{formatPhoneForDisplay(lead.phone)}</span>
-                  <button 
-                    className="text-[#25D366] hover:bg-[#25D366]/10 p-1.5 rounded-md transition-colors"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      const waPhone = formatPhoneForWhatsapp(lead.phone);
-                      if (waPhone) {
-                        window.open(`https://wa.me/${waPhone}`, '_blank');
-                      } else {
-                        alert('Telefone inválido ou não informado.');
-                      }
-                    }}
-                    title="Conversar no WhatsApp"
-                  >
-                    <MessageSquare className="w-4 h-4" />
-                  </button>
+          {/* Mobile Card View */}
+          <div className="block md:hidden p-4 space-y-4 bg-slate-50">
+            {filteredLeads.map((lead) => (
+              <div key={lead.id} className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col gap-3">
+                <div className="flex justify-between items-start">
+                  <div className="min-w-0 flex-1">
+                    <Link to={`/leads/${lead.id}`} className="font-bold text-slate-900 text-base hover:text-brand-700 transition-colors truncate block">
+                      {lead.name}
+                    </Link>
+                    <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 flex-wrap">
+                      <span className="font-semibold text-slate-700">{lead.area}</span>
+                      <span className="text-slate-300">•</span>
+                      <span>{lead.source}</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1.5 shrink-0 ml-2">
+                    <StatusBadge status={lead.status} />
+                    <PriorityBadge priority={lead.priority} />
+                  </div>
                 </div>
 
                 {lead.nextActionText && (
-                  <div className="text-xs border-l-2 border-brand-500 pl-3 py-1">
-                    <p className="font-medium text-slate-700 truncate">{lead.nextActionText}</p>
+                  <div className="text-xs bg-slate-50 border-l-2 border-brand-500 p-2.5 rounded-r-lg">
+                    <p className="font-semibold text-slate-700 truncate">{lead.nextActionText}</p>
                     {lead.nextActionAt && (
                       <p className="text-slate-500 mt-0.5 font-mono">{formatDateTime(lead.nextActionAt)}</p>
                     )}
                   </div>
                 )}
-              </div>
 
-              <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
-                <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
-                  {lead.city || 'S/ Cidade'}
-                </p>
-                <Link 
-                  to={`/leads/${lead.id}`} 
-                  className="flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-800 transition-colors"
-                >
-                  Ver detalhes
-                  <ChevronRight className="w-4 h-4" />
-                </Link>
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3 mt-1">
+                  <span className="text-xs text-slate-400 font-mono">
+                    {formatPhoneForDisplay(lead.phone)}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#25D366] text-white hover:bg-[#25D366]/90 transition-colors text-xs font-semibold cursor-pointer"
+                      onClick={() => {
+                        const waPhone = formatPhoneForWhatsapp(lead.phone);
+                        if (waPhone) {
+                          window.open(`https://wa.me/${waPhone}`, '_blank');
+                        } else {
+                          showToast('Telefone inválido ou não informado.', 'error');
+                        }
+                      }}
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      WhatsApp
+                    </button>
+                    <Link 
+                      to={`/leads/${lead.id}`} 
+                      className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-brand-50 hover:bg-brand-100 text-brand-700 transition-colors text-xs font-semibold"
+                    >
+                      Abrir
+                    </Link>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
     </div>
   );
 };
-

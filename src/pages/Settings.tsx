@@ -6,11 +6,14 @@ import { Button } from '../components/ui/Button';
 import { createOffice, updateOffice as dbUpdateOffice, updatePublicForm } from '../services/db';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, Building2, MessageSquare, ShieldAlert, Link as LinkIcon, Copy, ExternalLink, Globe } from 'lucide-react';
+import { PageHeader } from '../components/layout/PageHeader';
+import { useToast } from '../context/ToastContext';
 
 const DEFAULT_AREAS = ['Direito de Família', 'Direito Trabalhista', 'Direito do Consumidor', 'Direito Empresarial'];
 
 export const Settings = () => {
   const { office, user, updateUserOfficeId, setOffice } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -19,6 +22,7 @@ export const Settings = () => {
   const handleCopyText = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
     setCopiedKey(key);
+    showToast('Link copiado com sucesso.', 'success');
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
@@ -112,11 +116,12 @@ export const Settings = () => {
 
         setOffice({ ...office, ...dataToSave, updatedAt: new Date().toISOString() });
         setSuccess(true);
+        showToast('Configurações salvas com sucesso!', 'success');
         setTimeout(() => setSuccess(false), 3000);
       }
     } catch (error) {
       console.error("Error saving office:", error);
-      alert('Erro ao salvar as configurações.');
+      showToast('Erro ao salvar as configurações.', 'error');
     } finally {
       setLoading(false);
     }
@@ -124,14 +129,11 @@ export const Settings = () => {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto px-4 sm:px-6 pb-12">
-      <div className="border-b border-slate-100 pb-6">
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-          {office ? 'Perfil do Escritório' : 'Criar Escritório'}
-        </h1>
-        <p className="text-slate-500 mt-1">
-          {office ? 'Personalize a identificação e mensagens do seu escritório.' : 'Para começar, preencha os dados básicos do seu escritório.'}
-        </p>
-      </div>
+      <PageHeader
+        title="Configurações"
+        description={office ? 'Personalize a identificação e mensagens do seu escritório.' : 'Para começar, preencha os dados básicos do seu escritório.'}
+        breadcrumbItems={[{ label: 'Configurações' }]}
+      />
 
       {success && (
         <div className="bg-emerald-50 text-emerald-700 p-4 rounded-xl border border-emerald-200 flex items-center gap-3">

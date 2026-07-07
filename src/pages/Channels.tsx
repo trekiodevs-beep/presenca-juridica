@@ -9,9 +9,13 @@ import {
 } from 'lucide-react';
 import { createLead, addLeadEvent } from '../services/db';
 import { formatPhoneForDisplay, formatPhoneForWhatsapp } from '../lib/utils';
+import { PageHeader } from '../components/layout/PageHeader';
+import { useToast } from '../context/ToastContext';
+import { Link } from 'react-router-dom';
 
 export const Channels = () => {
   const { office, user } = useAuth();
+  const { showToast } = useToast();
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [creatingTest, setCreatingTest] = useState(false);
   const [testCreated, setTestCreated] = useState(false);
@@ -26,6 +30,7 @@ export const Channels = () => {
   const handleCopyText = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
     setCopiedKey(key);
+    showToast('Link copiado com sucesso.', 'success');
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
@@ -60,10 +65,11 @@ export const Channels = () => {
       });
 
       setTestCreated(true);
+      showToast('Contato de teste criado com sucesso.', 'success');
       setTimeout(() => setTestCreated(false), 5000);
     } catch (e) {
       console.error(e);
-      alert('Erro ao criar contato de teste.');
+      showToast('Erro ao criar contato de teste.', 'error');
     } finally {
       setCreatingTest(false);
     }
@@ -75,42 +81,50 @@ export const Channels = () => {
       const text = encodeURIComponent("Olá! Este é um teste do canal de atendimento do CRM Presença Jurídica.");
       window.open(`https://wa.me/${formatted}?text=${text}`, '_blank');
     } else {
-      alert('Por favor, configure o WhatsApp do escritório nas Configurações.');
+      showToast('Por favor, configure o WhatsApp do escritório nas Configurações.', 'error');
     }
   };
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto px-4 sm:px-6 pb-12">
       {/* Header */}
-      <div className="border-b border-slate-100 pb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Entrada de Contatos</h1>
-          <p className="text-slate-500 mt-1 max-w-2xl text-sm leading-relaxed">
-            Use estes links para receber contatos no CRM mesmo sem ter um site pronto. Quando alguém preenche o formulário, o contato aparece automaticamente na Tela Hoje.
-          </p>
-        </div>
-        
-        <div className="flex gap-2">
-          <Button 
-            onClick={handleCreateTest} 
-            disabled={creatingTest || testCreated} 
-            variant="outline"
-            className="gap-2 h-10 shrink-0 text-slate-700 border-slate-200"
-          >
-            {testCreated ? (
-              <span className="flex items-center gap-1.5 text-emerald-600"><CheckCircle2 className="w-4 h-4" /> Contato de Teste Criado</span>
-            ) : creatingTest ? (
-              'Criando...'
-            ) : (
-              <span className="flex items-center gap-1.5"><Plus className="w-4 h-4" /> Criar contato de teste</span>
-            )}
-          </Button>
-          {testCreated && (
-            <Button asChild className="bg-brand-700 hover:bg-brand-800 h-10">
-              <a href="/">Ver na Tela Hoje</a>
+      <PageHeader
+        title="Canais"
+        description="Use estes links para receber contatos no CRM mesmo sem ter um site pronto. Quando alguém preenche o formulário, o contato aparece automaticamente na Tela Hoje."
+        breadcrumbItems={[{ label: 'Canais' }]}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button 
+              onClick={handleCreateTest} 
+              disabled={creatingTest || testCreated} 
+              variant="outline"
+              className="gap-2 h-10 shrink-0 text-slate-700 border-slate-200 font-semibold cursor-pointer"
+            >
+              {testCreated ? (
+                <span className="flex items-center gap-1.5 text-emerald-600"><CheckCircle2 className="w-4 h-4" /> Contato de Teste Criado</span>
+              ) : creatingTest ? (
+                'Criando...'
+              ) : (
+                <span className="flex items-center gap-1.5"><Plus className="w-4 h-4" /> Criar contato de teste</span>
+              )}
             </Button>
-          )}
+            {testCreated && (
+              <Button asChild className="bg-brand-700 hover:bg-brand-800 h-10 font-semibold cursor-pointer">
+                <a href="/">Ver na Tela Hoje</a>
+              </Button>
+            )}
+          </div>
+        }
+      />
+
+      <div className="bg-brand-50 border border-brand-200 rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h3 className="text-brand-900 font-bold mb-1">Primeira vez usando o CRM?</h3>
+          <p className="text-brand-700 text-sm">Use o guia de primeiros passos para configurar seu link público e validar a jornada completa.</p>
         </div>
+        <Button asChild className="shrink-0 bg-brand-700 hover:bg-brand-800 text-white font-semibold shadow-sm">
+          <Link to="/onboarding">Abrir primeiros passos</Link>
+        </Button>
       </div>
 
       {!office.slug && (

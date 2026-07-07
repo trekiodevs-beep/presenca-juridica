@@ -3,6 +3,7 @@ import { useData } from '../context/DataContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { ShieldAlert, Users, Clock, CalendarCheck, TrendingUp } from 'lucide-react';
+import { PageHeader } from '../components/layout/PageHeader';
 
 export const Dashboard = () => {
   const { leads, loading } = useData();
@@ -52,10 +53,11 @@ export const Dashboard = () => {
   if (totalLeads === 0) {
     return (
       <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 pb-12">
-        <div className="border-b border-slate-100 pb-6">
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Indicadores de Organização</h1>
-          <p className="text-slate-500 mt-1">Acompanhe a origem, status e evolução dos contatos recebidos.</p>
-        </div>
+        <PageHeader
+          title="Dashboard"
+          description="Acompanhe a origem, status e evolução dos contatos recebidos."
+          breadcrumbItems={[{ label: 'Dashboard' }]}
+        />
         <Card className="flex flex-col items-center justify-center py-24 text-center border-slate-200 shadow-sm bg-slate-50/50 relative overflow-hidden">
           <img 
             src="/atom_simbolo_transparente_clean.png" 
@@ -77,10 +79,11 @@ export const Dashboard = () => {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 pb-12">
-      <div className="border-b border-slate-100 pb-6">
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Indicadores de Organização</h1>
-        <p className="text-slate-500 mt-1">Acompanhe a origem, status e evolução dos contatos recebidos.</p>
-      </div>
+      <PageHeader
+        title="Dashboard"
+        description="Acompanhe a origem, status e evolução dos contatos recebidos."
+        breadcrumbItems={[{ label: 'Dashboard' }]}
+      />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

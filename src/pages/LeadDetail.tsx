@@ -9,11 +9,14 @@ import { ArrowLeft, MessageSquare, Phone, Mail, MapPin, Calendar, Clock, Copy, U
 import { Select } from '../components/ui/Select';
 import { LeadStatus } from '../types';
 import { formatPhoneForDisplay, formatPhoneForWhatsapp, formatDateTime, humanizeSource } from '../lib/utils';
+import { PageHeader } from '../components/layout/PageHeader';
+import { useToast } from '../context/ToastContext';
 
 export const LeadDetail = () => {
   const { id } = useParams();
   const { user } = useAuth();
   const { leads, events, updateLead, addEvent } = useData();
+  const { showToast } = useToast();
   const lead = leads.find(l => l.id === id);
   const leadEvents = events
     .filter(e => e.leadId === id)
@@ -63,6 +66,7 @@ export const LeadDetail = () => {
       createdBy: user?.id || 'Sistema'
     });
     setNewNote('');
+    showToast('Anotação interna adicionada com sucesso.', 'success');
   };
 
   const handleSaveNextAction = async () => {
@@ -79,9 +83,10 @@ export const LeadDetail = () => {
         description: nextActionText ? `Próxima ação agendada: "${nextActionText}"` : 'Próxima ação removida',
         createdBy: user?.id || 'Sistema'
       });
+      showToast('Próxima ação salva com sucesso.', 'success');
     } catch (e) {
       console.error(e);
-      alert('Erro ao salvar próxima ação.');
+      showToast('Erro ao salvar próxima ação.', 'error');
     } finally {
       setIsSavingAction(false);
     }
@@ -110,7 +115,7 @@ export const LeadDetail = () => {
   const handleOpenWhatsapp = async () => {
     const waPhone = formatPhoneForWhatsapp(lead.phone);
     if (!waPhone) {
-      alert('Telefone inválido ou não informado.');
+      showToast('Telefone inválido ou não informado.', 'error');
       return;
     }
     await updateLead(lead.id, { lastWhatsappClickAt: new Date().toISOString() });
@@ -125,7 +130,7 @@ export const LeadDetail = () => {
 
   const handleCopyMessage = () => {
     navigator.clipboard.writeText(whatsappMessage);
-    alert('Mensagem copiada para a área de transferência!');
+    showToast('Mensagem copiada para a área de transferência!', 'success');
   };
 
   const getEventTitle = (type: string) => {
@@ -154,30 +159,25 @@ export const LeadDetail = () => {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 pb-12">
-      
-      {/* Top Navigation */}
-      <div className="flex items-center gap-2 mb-2">
-        <Link to="/leads" className="text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors">
-          Contatos
-        </Link>
-        <ChevronRight className="w-4 h-4 text-slate-400" />
-        <span className="text-sm font-medium text-slate-900">Detalhes</span>
-      </div>
-
-      {/* Header Profile */}
-      <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-start justify-between gap-6">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight mb-2">{lead.name}</h1>
-          <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600">
-            <span className="font-medium text-brand-700 bg-brand-50 px-2.5 py-0.5 rounded-md">{lead.area}</span>
-            <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-slate-400" /> {lead.city || 'Sem cidade'} {lead.state ? `/ ${lead.state}` : ''}</span>
-            <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-slate-400" /> Origem: {lead.source}</span>
+      <PageHeader
+        title={lead.name}
+        breadcrumbItems={[
+          { label: 'Contatos', to: '/leads' },
+          { label: 'Detalhes' }
+        ]}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge status={lead.status} />
+            <PriorityBadge priority={lead.priority} />
           </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-3 shrink-0">
-          <StatusBadge status={lead.status} />
-          <PriorityBadge priority={lead.priority} />
-        </div>
+        }
+      />
+
+      {/* Subheader info bar */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center gap-4 text-sm text-slate-600">
+        <span className="font-medium text-brand-700 bg-brand-50 px-2.5 py-0.5 rounded-md text-xs">{lead.area}</span>
+        <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-slate-400" /> {lead.city || 'Sem cidade'}{lead.state ? `, ${lead.state}` : ''}</span>
+        <span className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-slate-400" /> Origem: {lead.source}</span>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

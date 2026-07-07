@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Users, AlertCircle, Clock, Calendar, CheckCircle2, ChevronRight, Plus, Route as RouteIcon, Link as LinkIcon, Smartphone, MonitorSmartphone } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { PageHeader } from '../components/layout/PageHeader';
 import { isToday, isPast, parseISO } from 'date-fns';
 import { formatDateTime } from '../lib/utils';
 import { Button } from '../components/ui/Button';
@@ -48,18 +49,31 @@ export const Hoje = () => {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto px-4 sm:px-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Bom dia, {firstName}.</h1>
-          <p className="text-slate-500 mt-1">Aqui está sua rotina de atendimento para hoje.</p>
+      <PageHeader
+        title="Hoje"
+        description={`Bom dia, ${firstName}. Aqui está sua rotina de atendimento para hoje.`}
+        breadcrumbItems={[]}
+        actions={
+          <Button asChild className="gap-2 shrink-0 font-semibold cursor-pointer">
+            <Link to="/leads/new">
+              <Plus className="w-4 h-4" />
+              Novo contato
+            </Link>
+          </Button>
+        }
+      />
+
+      {(!office?.slug || leads.length === 0) && (
+        <div className="bg-brand-50 border border-brand-200 rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h3 className="text-brand-900 font-bold mb-1">Configure sua entrada de contatos</h3>
+            <p className="text-brand-700 text-sm">Copie seu link público, envie um contato de teste e veja como ele aparece aqui.</p>
+          </div>
+          <Button asChild className="shrink-0 bg-brand-700 hover:bg-brand-800 text-white font-semibold shadow-sm">
+            <Link to="/onboarding">Ver primeiros passos</Link>
+          </Button>
         </div>
-        <Button asChild className="gap-2 shrink-0">
-          <Link to="/leads/new">
-            <Plus className="w-4 h-4" />
-            Novo contato
-          </Link>
-        </Button>
-      </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {statCards.map((stat, idx) => (
