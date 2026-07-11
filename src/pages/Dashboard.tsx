@@ -1,12 +1,44 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { ShieldAlert, Users, Clock, CalendarCheck, TrendingUp } from 'lucide-react';
+import { ShieldAlert, Users, Clock, CalendarCheck, AlertTriangle, ArrowRight, TrendingUp, Info, Activity, Hourglass, CheckCircle2, ChevronRight, FileText } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
+import { StatusBadge } from '../components/ui/Badge';
+import { 
+  DashboardPeriod, 
+  filterContactsByPeriod, 
+  filterEventsByPeriod, 
+  getTriagePendingCount,
+  getOverdueActions,
+  getUnassignedContacts,
+  getFirstResponseTime,
+  formatTimeMinutes,
+  getReturnStartedRate,
+  groupBySource,
+  groupByArea,
+  groupByStatus,
+  groupByUtm,
+  getAttentionItems,
+  getTimelineSeries
+} from '../lib/dashboardMetrics';
+import { cn } from '../lib/utils';
 
 export const Dashboard = () => {
-  const { leads, loading } = useData();
+  const { leads, events, loading } = useData();
+  const [period, setPeriod] = useState<DashboardPeriod>('30days');
+
+  useEffect(() => {
+    const saved = localStorage.getItem('crm_dashboard_period') as DashboardPeriod;
+    if (saved) setPeriod(saved);
+  }, []);
+
+  const handlePeriodChange = (newPeriod: DashboardPeriod) => {
+    setPeriod(newPeriod);
+    localStorage.setItem('crm_dashboard_period', newPeriod);
+  };
 
   if (loading) {
     return (
@@ -16,196 +48,415 @@ export const Dashboard = () => {
     );
   }
 
-  // Basic Metrics
-  const totalLeads = leads.length;
+  const periodLeads = filterContactsByPeriod(leads, period);
+  const periodEvents = filterEventsByPeriod(events, period);
+
+  // General Metrics
+  const totalLeads = periodLeads.length;
+  const triagePending = getTriagePendingCount(periodLeads);
+  const overdueActions = getOverdueActions(periodLeads);
+  const unassigned = getUnassignedContacts(periodLeads);
+  const avgResponseTime = getFirstResponseTime(periodLeads, periodEvents);
+  const returnRate = getReturnStartedRate(periodLeads, periodEvents);
+  const attentionItems = getAttentionItems(periodLeads, periodEvents);
   
-  const bySource = leads.reduce((acc, lead) => {
-    acc[lead.source] = (acc[lead.source] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-  const sourceData = Object.keys(bySource).map(key => ({ name: key, value: bySource[key] })).sort((a, b) => b.value - a.value);
-  const mostActiveSource = sourceData.length > 0 ? sourceData[0].name : '-';
+  const statusData = groupByStatus(periodLeads);
+  const sourceData = groupBySource(periodLeads);
+  const areaData = groupByArea(periodLeads);
+  const utmData = groupByUtm(periodLeads);
+  const timelineData = getTimelineSeries(periodLeads, period);
 
-  const byArea = leads.reduce((acc, lead) => {
-    acc[lead.area] = (acc[lead.area] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-  const areaData = Object.keys(byArea).map(key => ({ name: key, value: byArea[key] })).sort((a, b) => b.value - a.value);
+  const mainSource = sourceData.length > 0 ? sourceData[0] : null;
+  const mainArea = areaData.length > 0 ? areaData[0] : null;
 
-  const byStatus = leads.reduce((acc, lead) => {
-    acc[lead.status] = (acc[lead.status] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-  const statusData = Object.keys(byStatus).map(key => ({ name: key, value: byStatus[key] })).sort((a, b) => b.value - a.value);
+  // Funnel calculations
+  const triageRate = totalLeads > 0 ? Math.round(((totalLeads - triagePending) / totalLeads) * 100) : 0;
+  const scheduledCount = statusData.find(s => s.name === 'Consulta agendada')?.value || 0;
+  const contractedCount = statusData.find(s => s.name === 'Contratado')?.value || 0;
+  const lossCount = statusData.find(s => s.name === 'Não avançou')?.value || 0;
 
-  const waitingTriage = leads.filter(l => l.status === 'Novo contato' || l.status === 'Aguardando triagem').length;
-  const withNextAction = leads.filter(l => l.nextActionText).length;
-
-  const COLORS = ['#1a365d', '#2a4365', '#2c5282', '#2b6cb0', '#3182ce', '#4299e1'];
-  
   const getStatusColor = (status: string) => {
-    if (['Novo contato', 'Aguardando triagem'].includes(status)) return '#eab308'; // Amber
+    if (['Novo contato', 'Aguardando triagem'].includes(status)) return '#f59e0b'; // Amber
+    if (['Triagem realizada', 'Aguardando informações'].includes(status)) return '#8b5cf6'; // Purple
     if (['Consulta agendada', 'Proposta enviada'].includes(status)) return '#3b82f6'; // Blue
-    if (['Contratado'].includes(status)) return '#22c55e'; // Green
+    if (['Contratado'].includes(status)) return '#10b981'; // Green
     return '#94a3b8'; // Slate
   };
 
-  if (totalLeads === 0) {
-    return (
-      <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 pb-12">
-        <PageHeader
-          title="Dashboard"
-          description="Acompanhe a origem, status e evolução dos contatos recebidos."
-          breadcrumbItems={[{ label: 'Dashboard' }]}
-        />
-        <Card className="flex flex-col items-center justify-center py-24 text-center border-slate-200 shadow-sm bg-slate-50/50 relative overflow-hidden">
-          <img 
-            src="/atom_simbolo_transparente_clean.png" 
-            alt="" 
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 object-contain opacity-[0.03] pointer-events-none" 
-            onError={(e) => e.currentTarget.style.display = 'none'}
-          />
-          <div className="bg-white w-20 h-20 rounded-full flex items-center justify-center mb-6 shadow-sm border border-slate-100 relative z-10">
-            <TrendingUp className="w-8 h-8 text-slate-300" />
-          </div>
-          <h3 className="text-xl font-medium text-slate-800 mb-2 relative z-10">Painel em preparação</h3>
-          <p className="text-slate-500 max-w-md mx-auto leading-relaxed text-sm relative z-10">
-            Os gráficos e indicadores de organização serão exibidos aqui automaticamente assim que você registrar os primeiros contatos no sistema.
-          </p>
-        </Card>
+  const COLORS = ['#1a365d', '#2a4365', '#2c5282', '#2b6cb0', '#3182ce', '#4299e1', '#63b3ed', '#90cdf4'];
+
+  const renderEmptyState = () => (
+    <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 pb-12">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Dashboard</h1>
+          <p className="text-slate-500 mt-1">Acompanhe a organização do atendimento.</p>
+        </div>
+        <div className="flex bg-slate-100 p-1 rounded-lg">
+          {(['today', '7days', '30days', 'thisMonth', 'all'] as DashboardPeriod[]).map(p => (
+            <button
+              key={p}
+              onClick={() => handlePeriodChange(p)}
+              className={cn(
+                "px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+                period === p ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              {p === 'today' ? 'Hoje' : p === '7days' ? '7 dias' : p === '30days' ? '30 dias' : p === 'thisMonth' ? 'Mês atual' : 'Todos'}
+            </button>
+          ))}
+        </div>
       </div>
-    );
+      
+      <Card className="flex flex-col items-center justify-center py-24 text-center border-slate-200 shadow-sm bg-slate-50/50">
+        <div className="bg-white w-16 h-16 rounded-full flex items-center justify-center mb-6 shadow-sm border border-slate-100">
+          <FileText className="w-8 h-8 text-slate-300" />
+        </div>
+        <h3 className="text-lg font-bold text-slate-900 mb-2">Nenhum contato encontrado neste período.</h3>
+        <p className="text-slate-500 max-w-sm mx-auto mb-6 text-sm">
+          Altere o período do filtro ou receba novos contatos para visualizar os indicadores do escritório.
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <Button asChild variant="outline" className="gap-2">
+            <Link to="/canais">Ir para Canais</Link>
+          </Button>
+          <Button asChild className="gap-2 bg-brand-700 hover:bg-brand-800">
+            <Link to="/leads/new">Novo contato</Link>
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+
+  if (totalLeads === 0) {
+    return renderEmptyState();
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 pb-12">
-      <PageHeader
-        title="Dashboard"
-        description="Acompanhe a origem, status e evolução dos contatos recebidos."
-        breadcrumbItems={[{ label: 'Dashboard' }]}
-      />
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-slate-200 shadow-sm">
-          <CardContent className="p-6 flex flex-col gap-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-brand-50 rounded-lg text-brand-600"><Users className="w-5 h-5" /></div>
-              <p className="text-sm font-medium text-slate-500">Total de Contatos</p>
-            </div>
-            <p className="text-3xl font-bold text-slate-900">{totalLeads}</p>
-          </CardContent>
-        </Card>
+    <div className="space-y-8 max-w-7xl mx-auto px-4 sm:px-6 pb-12">
+      {/* Header and Filters */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Painel de gestão</h1>
+          <p className="text-slate-500 mt-1">Acompanhe a rotina de atendimento inicial, origem dos contatos e providências pendentes.</p>
+        </div>
         
-        <Card className="border-slate-200 shadow-sm">
-          <CardContent className="p-6 flex flex-col gap-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-amber-50 rounded-lg text-amber-600"><Clock className="w-5 h-5" /></div>
-              <p className="text-sm font-medium text-slate-500">Triagem pendente</p>
+        <div className="flex bg-slate-100 p-1 rounded-lg shrink-0 overflow-x-auto">
+          {(['today', '7days', '30days', 'thisMonth', 'all'] as DashboardPeriod[]).map(p => (
+            <button
+              key={p}
+              onClick={() => handlePeriodChange(p)}
+              className={cn(
+                "px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap",
+                period === p ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              {p === 'today' ? 'Hoje' : p === '7days' ? '7 dias' : p === '30days' ? '30 dias' : p === 'thisMonth' ? 'Mês atual' : 'Todos'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {totalLeads < 10 && (
+        <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl flex items-start gap-3">
+          <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+          <p className="text-sm text-blue-800">
+            Base inicial de dados. Os indicadores ajudam a validar a rotina, mas ficam mais precisos conforme novos contatos e eventos forem registrados.
+          </p>
+        </div>
+      )}
+
+      {/* 1. Pulso do Atendimento */}
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">Resumo do atendimento</h2>
+          <p className="text-slate-500 text-sm">Visão rápida da rotina de atendimento inicial no período selecionado.</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          <Card className="border-slate-200 shadow-sm hover:shadow transition-shadow">
+            <CardContent className="p-5 flex flex-col gap-2 h-full">
+              <div className="flex items-center gap-2 text-brand-600 mb-1">
+                <Users className="w-4 h-4" />
+                <span className="text-xs font-semibold uppercase tracking-wider">Contatos recebidos</span>
+              </div>
+              <p className="text-3xl font-bold text-slate-900">{totalLeads}</p>
+              <p className="text-xs text-slate-500 mt-auto pt-2 border-t border-slate-50">Solicitações recebidas no período.</p>
+            </CardContent>
+          </Card>
+          
+          <Link to="/leads" className="block focus:outline-none focus:ring-2 focus:ring-brand-500 rounded-xl">
+            <Card className="border-slate-200 shadow-sm hover:shadow transition-shadow bg-amber-50/30 h-full cursor-pointer hover:border-amber-300 group">
+              <CardContent className="p-5 flex flex-col gap-2 h-full">
+                <div className="flex items-center gap-2 text-amber-600 mb-1">
+                  <Hourglass className="w-4 h-4" />
+                  <span className="text-xs font-semibold uppercase tracking-wider">Aguardando triagem</span>
+                </div>
+                <p className="text-3xl font-bold text-slate-900">{triagePending}</p>
+                <p className="text-xs text-slate-500 mt-auto pt-2 border-t border-amber-50/50 group-hover:text-amber-700 transition-colors">Contatos que ainda precisam de análise inicial.</p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link to="/leads" className="block focus:outline-none focus:ring-2 focus:ring-brand-500 rounded-xl">
+            <Card className="border-slate-200 shadow-sm hover:shadow transition-shadow bg-red-50/30 h-full cursor-pointer hover:border-red-300 group">
+              <CardContent className="p-5 flex flex-col gap-2 h-full">
+                <div className="flex items-center gap-2 text-red-600 mb-1">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span className="text-xs font-semibold uppercase tracking-wider">Providências vencidas</span>
+                </div>
+                <p className="text-3xl font-bold text-slate-900">{overdueActions}</p>
+                <p className="text-xs text-slate-500 mt-auto pt-2 border-t border-red-50/50 group-hover:text-red-700 transition-colors">Providências fora do prazo.</p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link to="/leads" className="block focus:outline-none focus:ring-2 focus:ring-brand-500 rounded-xl">
+            <Card className="border-slate-200 shadow-sm hover:shadow transition-shadow h-full cursor-pointer hover:border-slate-300 group">
+              <CardContent className="p-5 flex flex-col gap-2 h-full">
+                <div className="flex items-center gap-2 text-slate-600 mb-1">
+                  <ShieldAlert className="w-4 h-4" />
+                  <span className="text-xs font-semibold uppercase tracking-wider">Sem responsável definido</span>
+                </div>
+                <p className="text-3xl font-bold text-slate-900">{unassigned}</p>
+                <p className="text-xs text-slate-500 mt-auto pt-2 border-t border-slate-50 group-hover:text-slate-700 transition-colors">Contatos ainda sem responsável.</p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Card className="border-slate-200 shadow-sm hover:shadow transition-shadow" title="Tempo médio entre a criação do contato e o primeiro registro de atendimento, como WhatsApp aberto, anotação ou mudança de situação.">
+            <CardContent className="p-5 flex flex-col gap-2 h-full">
+              <div className="flex items-center gap-2 text-emerald-600 mb-1">
+                <Clock className="w-4 h-4" />
+                <span className="text-xs font-semibold uppercase tracking-wider">Tempo até o primeiro retorno</span>
+              </div>
+              <p className="text-xl sm:text-2xl font-bold text-slate-900 pt-1">{formatTimeMinutes(avgResponseTime)}</p>
+              <p className="text-xs text-slate-500 mt-auto pt-2 border-t border-slate-50">Média até o primeiro registro de atendimento.</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200 shadow-sm hover:shadow transition-shadow" title="Percentual de contatos que já tiveram pelo menos uma providência ou registro de atendimento.">
+            <CardContent className="p-5 flex flex-col gap-2 h-full">
+              <div className="flex items-center gap-2 text-blue-600 mb-1">
+                <CheckCircle2 className="w-4 h-4" />
+                <span className="text-xs font-semibold uppercase tracking-wider">Primeiro retorno registrado</span>
+              </div>
+              <p className="text-3xl font-bold text-slate-900">{returnRate}%</p>
+              <p className="text-xs text-slate-500 mt-auto pt-2 border-t border-slate-50">Contatos com pelo menos um registro de atendimento.</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* 2. Atenção Necessária */}
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              Pontos de atenção
+            </h2>
+            <p className="text-slate-500 text-sm">Contatos que podem estar parados ou exigem providências do escritório.</p>
+          </div>
+        </div>
+
+        {attentionItems.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {attentionItems.map((item, idx) => (
+              <Card key={idx} className="border-amber-200 bg-amber-50/10 shadow-sm">
+                <CardContent className="p-4 flex flex-col justify-between h-full">
+                  <div>
+                    <div className="flex justify-between items-start mb-2">
+                      <h4 className="font-bold text-slate-900 truncate pr-2">{item.lead.name}</h4>
+                      <span className="shrink-0 inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-amber-100 text-amber-800" title={item.reason}>
+                        <span className="truncate max-w-[120px]">{item.reason}</span>
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-xs text-slate-500 mb-4">
+                      <span className="font-medium text-slate-700">{item.lead.area}</span>
+                      <span>&bull;</span>
+                      <span>{item.lead.status}</span>
+                    </div>
+                  </div>
+                  <Button asChild size="sm" variant="outline" className="w-full text-brand-700 border-brand-200 hover:bg-brand-50 bg-white">
+                    <Link to={`/leads/${item.lead.id}`}>Abrir contato</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-emerald-50 border border-emerald-200 p-6 rounded-2xl flex flex-col items-center justify-center text-center">
+            <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mb-3">
+              <CheckCircle2 className="w-6 h-6 text-emerald-600" />
             </div>
-            <p className="text-3xl font-bold text-slate-900">{waitingTriage}</p>
+            <h3 className="text-emerald-900 font-bold mb-1">Nenhum ponto crítico no período.</h3>
+            <p className="text-emerald-700 text-sm">Continue acompanhando a aba Hoje para manter a triagem em dia.</p>
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* 3. Evolução no Tempo */}
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader className="border-b border-slate-100">
+            <CardTitle className="text-base text-slate-900">Contatos recebidos no período</CardTitle>
+          </CardHeader>
+          <CardContent className="p-6 h-[300px]">
+             {timelineData.length > 0 ? (
+               <ResponsiveContainer width="100%" height="100%">
+                 <BarChart data={timelineData}>
+                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                   <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
+                   <YAxis tick={{ fontSize: 12, fill: '#64748b' }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
+                   <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                   <Bar dataKey="value" fill="#2b6cb0" radius={[4, 4, 0, 0]} />
+                 </BarChart>
+               </ResponsiveContainer>
+             ) : (
+               <div className="flex flex-col h-full items-center justify-center text-sm text-slate-500 gap-3">
+                 <p>Nenhum dado suficiente neste período.</p>
+                 <Button asChild variant="outline" size="sm" className="mt-2">
+                   <Link to="/canais">Ir para Canais de entrada</Link>
+                 </Button>
+               </div>
+             )}
           </CardContent>
         </Card>
 
+        {/* 4. Funil de Atendimento Inicial */}
         <Card className="border-slate-200 shadow-sm">
-          <CardContent className="p-6 flex flex-col gap-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600"><CalendarCheck className="w-5 h-5" /></div>
-              <p className="text-sm font-medium text-slate-500">Com Próxima Ação</p>
-            </div>
-            <p className="text-3xl font-bold text-slate-900">{withNextAction}</p>
+          <CardHeader className="border-b border-slate-100">
+            <CardTitle className="text-base text-slate-900 flex justify-between" title="Percentual de contatos que já avançaram além da etapa inicial.">
+              Situação dos contatos
+              <span className="text-sm font-normal text-slate-500">Avanço da triagem: {triageRate}%</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6 h-[300px]">
+            {statusData.length > 0 ? (
+               <ResponsiveContainer width="100%" height="100%">
+                 <BarChart data={statusData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
+                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+                   <XAxis type="number" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
+                   <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 11, fill: '#475569' }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
+                   <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                   <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                     {statusData.map((entry, index) => (
+                       <Cell key={`cell-${index}`} fill={getStatusColor(entry.name)} />
+                     ))}
+                   </Bar>
+                 </BarChart>
+               </ResponsiveContainer>
+             ) : (
+               <div className="flex flex-col h-full items-center justify-center text-sm text-slate-500 gap-3">
+                 <p>Nenhum dado suficiente neste período.</p>
+               </div>
+             )}
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 shadow-sm">
-          <CardContent className="p-6 flex flex-col gap-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600"><TrendingUp className="w-5 h-5" /></div>
-              <p className="text-sm font-medium text-slate-500">Origem Principal</p>
-            </div>
-            <p className="text-xl font-bold text-slate-900 truncate">{mostActiveSource}</p>
+        {/* 5. Canais e Origem */}
+        <Card className="border-slate-200 shadow-sm lg:col-span-1 flex flex-col">
+          <CardHeader className="border-b border-slate-100 flex-row items-center justify-between">
+            <CardTitle className="text-base text-slate-900">Origem dos contatos</CardTitle>
+            {mainSource && <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md font-medium">Principal: {mainSource.name}</span>}
+          </CardHeader>
+          <CardContent className="p-0 flex-1 overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
+                <tr>
+                  <th className="px-4 py-3 border-b border-slate-100">Origem do contato</th>
+                  <th className="px-4 py-3 border-b border-slate-100 text-center">Contatos</th>
+                  <th className="px-4 py-3 border-b border-slate-100 text-center">Aguardando triagem</th>
+                  <th className="px-4 py-3 border-b border-slate-100 text-center">Sem primeiro retorno</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {sourceData.length > 0 ? (
+                  sourceData.map((src, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/50">
+                      <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap">{src.name}</td>
+                      <td className="px-4 py-3 text-center text-slate-600">{src.total}</td>
+                      <td className="px-4 py-3 text-center text-amber-600 font-medium">{src.triagePending}</td>
+                      <td className="px-4 py-3 text-center text-slate-600">{src.noReturn}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-8 text-center text-slate-400">Sem origens mapeadas.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+            
+            {utmData.length > 0 && (
+              <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Campanhas rastreáveis</h4>
+                  <span className="text-xs text-slate-400" title="Parâmetros técnicos de rastreamento (UTM)">
+                    <Info className="w-4 h-4" />
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {utmData.map((utm, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600 truncate pr-2" title={utm.name}>{utm.name}</span>
+                      <span className="font-medium text-slate-900 bg-slate-100 px-2 rounded-md">{utm.total}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {utmData.length === 0 && sourceData.length > 0 && (
+              <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+                <p className="text-xs text-slate-500 text-center">Nenhuma campanha rastreada no período.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 6. Áreas Jurídicas */}
+        <Card className="border-slate-200 shadow-sm lg:col-span-1 flex flex-col">
+          <CardHeader className="border-b border-slate-100 flex-row items-center justify-between">
+            <CardTitle className="text-base text-slate-900">Áreas de atuação</CardTitle>
+            {mainArea && <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md font-medium">Top: {mainArea.name}</span>}
+          </CardHeader>
+          <CardContent className="p-0 flex-1 overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
+                <tr>
+                  <th className="px-4 py-3 border-b border-slate-100">Área de atuação</th>
+                  <th className="px-4 py-3 border-b border-slate-100 text-center">Contatos</th>
+                  <th className="px-4 py-3 border-b border-slate-100 text-center">Consultas agendadas</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {areaData.length > 0 ? (
+                  areaData.map((area, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/50">
+                      <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap truncate max-w-[200px]" title={area.name}>{area.name}</td>
+                      <td className="px-4 py-3 text-center text-slate-600">{area.total}</td>
+                      <td className="px-4 py-3 text-center text-brand-600 font-medium">{area.scheduled}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-8 text-center text-slate-400">Sem áreas mapeadas.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="bg-slate-50 border-b border-slate-100 py-4">
-            <CardTitle className="text-base text-brand-900">Contatos por Área Jurídica</CardTitle>
-          </CardHeader>
-          <CardContent className="h-80 p-6">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={areaData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
-                <XAxis type="number" tick={{ fill: '#64748b' }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
-                <YAxis dataKey="name" type="category" width={140} tick={{ fontSize: 12, fill: '#475569' }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
-                <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                <Bar dataKey="value" fill="#1a365d" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="bg-slate-50 border-b border-slate-100 py-4">
-            <CardTitle className="text-base text-brand-900">Origem dos Contatos</CardTitle>
-          </CardHeader>
-          <CardContent className="h-80 flex items-center justify-center p-6">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={sourceData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={70}
-                  outerRadius={100}
-                  paddingAngle={3}
-                  dataKey="value"
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  labelLine={false}
-                >
-                  {sourceData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-2 border-slate-200 shadow-sm">
-          <CardHeader className="bg-slate-50 border-b border-slate-100 py-4">
-            <CardTitle className="text-base text-brand-900">Distribuição por Status de Atendimento</CardTitle>
-          </CardHeader>
-          <CardContent className="h-80 p-6">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={statusData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} tick={{ fontSize: 12, fill: '#475569' }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
-                <YAxis tick={{ fill: '#64748b' }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
-                <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                  {statusData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={getStatusColor(entry.name)} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="mt-8 space-y-4">
-        <div className="pt-4 border-t border-slate-200 flex items-start gap-3 text-slate-500 bg-slate-50 p-4 rounded-xl">
+      <div className="mt-8 pt-6 border-t border-slate-200">
+        <div className="flex items-start gap-3 text-slate-500 bg-slate-50 p-4 rounded-xl">
            <ShieldAlert className="w-5 h-5 mt-0.5 shrink-0 text-slate-400" />
            <p className="text-sm leading-relaxed">
-             <strong>Nota de conformidade:</strong> Os indicadores exibidos medem exclusivamente métricas de organização e rastreabilidade administrativa. Não representam promessa de contratação, análise preditiva de fechamento ou qualquer tipo de garantia de resultado jurídico.
+             <strong>Nota de conformidade:</strong> Os indicadores exibidos medem exclusivamente métricas de organização e rastreabilidade administrativa do atendimento inicial. Não representam gestão processual, promessa de contratação ou garantia de resultado.
            </p>
         </div>
-        <p className="text-center text-xs text-slate-400 font-medium tracking-wide">
-          Dados organizados pela Presença Jurídica CRM &bull; TrekIO + ATOM
-        </p>
       </div>
     </div>
   );

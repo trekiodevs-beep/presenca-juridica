@@ -230,7 +230,7 @@ export const NewLead = () => {
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Resumo Inicial da Demanda</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Síntese do atendimento inicial</label>
               <textarea
                 value={formData.summary}
                 onChange={e => setFormData({...formData, summary: e.target.value})}

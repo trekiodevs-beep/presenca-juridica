@@ -28,7 +28,7 @@ export const Leads = () => {
   const handleSetViewMode = (mode: 'kanban' | 'list') => {
     setViewMode(mode);
     localStorage.setItem('crm_contacts_view_mode', mode);
-    showToast(`Visualização em ${mode === 'list' ? 'Lista' : 'Kanban'} salva.`, 'info');
+    showToast(`Visualização em ${mode === 'list' ? 'Lista' : 'Por situação'} salva.`, 'info');
   };
 
   const filteredLeads = leads.filter(lead => {
@@ -67,8 +67,8 @@ export const Leads = () => {
             "p-1.5 rounded-md transition-colors cursor-pointer", 
             viewMode === 'kanban' ? "bg-white shadow-sm text-brand-700" : "text-slate-500 hover:text-slate-700"
           )}
-          title="Visualização em Kanban"
-          aria-label="Visualização em Kanban"
+          title="Visualização por situação"
+          aria-label="Visualização por situação"
         >
           <KanbanIcon className="w-4 h-4" />
         </button>
@@ -98,7 +98,7 @@ export const Leads = () => {
     <div className={cn("space-y-6 mx-auto px-4 sm:px-6 pb-12", viewMode === 'kanban' ? 'max-w-[1600px]' : 'max-w-7xl')}>
       <PageHeader
         title="Contatos"
-        description="Acompanhe todos os contatos recebidos e mantenha cada próximo passo registrado."
+        description="Acompanhe solicitações recebidas, triagem, retorno e próximas providências."
         breadcrumbItems={[{ label: 'Contatos' }]}
         actions={headerActions}
       />
@@ -200,11 +200,11 @@ export const Leads = () => {
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-xs font-semibold uppercase tracking-wider">
                   <th className="px-6 py-4">Nome</th>
-                  <th className="px-6 py-4">Área</th>
-                  <th className="px-6 py-4">Origem</th>
-                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4">Área de atuação</th>
+                  <th className="px-6 py-4">Origem do contato</th>
+                  <th className="px-6 py-4">Situação</th>
                   <th className="px-6 py-4">Prioridade</th>
-                  <th className="px-6 py-4">Próxima Ação</th>
+                  <th className="px-6 py-4">Próxima providência</th>
                   <th className="px-6 py-4 text-right">Ações</th>
                 </tr>
               </thead>

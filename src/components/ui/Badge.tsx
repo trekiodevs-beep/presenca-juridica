@@ -1,6 +1,7 @@
 import React from 'react';
 import { cn } from '../../lib/utils';
 import { LeadStatus, Priority } from '../../types';
+import { getStatusLabel } from '../../lib/legalTerminology';
 
 interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: 'default' | 'success' | 'warning' | 'error' | 'neutral';
@@ -35,7 +36,7 @@ export const StatusBadge = ({ status }: { status: LeadStatus }) => {
   if (status === 'Novo contato') variant = 'error';
   if (status === 'Aguardando triagem' || status === 'Aguardando informações') variant = 'warning';
 
-  return <Badge variant={variant}>{status}</Badge>;
+  return <Badge variant={variant}>{getStatusLabel(status)}</Badge>;
 }
 
 export const PriorityBadge = ({ priority }: { priority: Priority }) => {

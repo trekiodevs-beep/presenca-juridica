@@ -180,14 +180,14 @@ export const PublicContactForm: React.FC<PublicContactFormProps> = ({ officeForm
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1.5">Resumo Inicial *</label>
+          <label className="block text-sm font-medium text-slate-700 mb-1.5">Descreva brevemente sua solicitação *</label>
           <textarea 
             required
             rows={4}
             value={formData.summary}
             onChange={e => setFormData({...formData, summary: e.target.value})}
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-50"
-            placeholder="Descreva brevemente sua dúvida ou necessidade jurídica..."
+            placeholder="Descreva brevemente sua solicitação..."
           />
         </div>
 
@@ -200,9 +200,14 @@ export const PublicContactForm: React.FC<PublicContactFormProps> = ({ officeForm
             onChange={e => setFormData({...formData, consentLgpd: e.target.checked})}
             className="mt-1 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
           />
-          <label htmlFor="lgpd" className="text-xs text-slate-600 leading-relaxed cursor-pointer">
-            Autorizo o envio dos meus dados para que o escritório possa realizar o atendimento inicial. Não envie documentos ou informações sensíveis neste formulário.
-          </label>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="lgpd" className="text-xs text-slate-600 leading-relaxed cursor-pointer">
+              Autorizo o uso dos dados informados para retorno do escritório e organização do atendimento inicial.
+            </label>
+            <p className="text-xs font-medium text-amber-700 bg-amber-50 p-2 rounded border border-amber-100">
+              Não envie documentos, números de processo, CPF, RG ou dados sensíveis neste primeiro contato.
+            </p>
+          </div>
         </div>
 
         <Button type="submit" disabled={submitting || !formData.consentLgpd} className="w-full bg-brand-700 hover:bg-brand-800 h-12 text-base shadow-sm">

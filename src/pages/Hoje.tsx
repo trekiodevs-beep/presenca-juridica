@@ -29,11 +29,11 @@ export const Hoje = () => {
   const scheduledConsultations = leads.filter(l => l.status === 'Consulta agendada').length;
 
   const statCards = [
-    { title: 'Triagem pendente', value: waitingTriage, icon: Clock, color: 'text-amber-600', bgColor: 'bg-amber-50' },
-    { title: 'Retornos Vencidos', value: delayedActions, icon: AlertCircle, color: 'text-red-600', bgColor: 'bg-red-50' },
-    { title: 'Próximas Ações (Hoje)', value: actionsToday, icon: CheckCircle2, color: 'text-emerald-600', bgColor: 'bg-emerald-50' },
-    { title: 'Sem Responsável', value: withoutResponsible, icon: Users, color: 'text-slate-600', bgColor: 'bg-slate-100' },
-    { title: 'Consultas Agendadas', value: scheduledConsultations, icon: Calendar, color: 'text-indigo-600', bgColor: 'bg-indigo-50' },
+    { title: 'Aguardando triagem', value: waitingTriage, icon: Clock, color: 'text-amber-600', bgColor: 'bg-amber-50' },
+    { title: 'Providências vencidas', value: delayedActions, icon: AlertCircle, color: 'text-red-600', bgColor: 'bg-red-50' },
+    { title: 'Próximas providências hoje', value: actionsToday, icon: CheckCircle2, color: 'text-emerald-600', bgColor: 'bg-emerald-50' },
+    { title: 'Sem responsável definido', value: withoutResponsible, icon: Users, color: 'text-slate-600', bgColor: 'bg-slate-100' },
+    { title: 'Consultas agendadas', value: scheduledConsultations, icon: Calendar, color: 'text-indigo-600', bgColor: 'bg-indigo-50' },
   ];
 
   const priorityLeads = leads
@@ -94,7 +94,7 @@ export const Hoje = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="md:col-span-2">
           <div className="mb-4">
-            <h2 className="text-lg font-bold text-slate-900">Prioridade Operacional</h2>
+            <h2 className="text-lg font-bold text-slate-900">Pontos de atenção de hoje</h2>
             <p className="text-sm text-slate-500">Contatos que precisam da sua atenção imediata.</p>
           </div>
           
@@ -118,11 +118,11 @@ export const Hoje = () => {
                               <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/10">Hoje</span>
                             )}
                             {(!lead.nextActionAt && (lead.status === 'Novo contato' || lead.status === 'Aguardando triagem')) && (
-                              <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-600/10">Triagem pendente</span>
+                              <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-600/10">Aguardando triagem</span>
                             )}
                           </div>
                           <p className="text-sm text-slate-500 truncate">
-                            {lead.nextActionText || `Contato recebido sobre ${lead.area}`}
+                            {lead.nextActionText || `Solicitação recebida em ${lead.area}`}
                           </p>
                           {lead.nextActionAt && (
                             <p className="text-[11px] text-slate-400 mt-1 font-mono">Agendado para: {formatDateTime(lead.nextActionAt)}</p>

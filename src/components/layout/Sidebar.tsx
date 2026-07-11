@@ -20,8 +20,8 @@ export const Sidebar = ({
     { name: 'Primeiros passos', path: '/onboarding', icon: Compass },
     { name: 'Hoje', path: '/', icon: LayoutDashboard },
     { name: 'Contatos', path: '/leads', icon: Users },
-    { name: 'Canais', path: '/canais', icon: RouteIcon },
-    { name: 'Dashboard', path: '/dashboard', icon: Briefcase },
+    { name: 'Canais de entrada', path: '/canais', icon: RouteIcon },
+    { name: 'Painel de gestão', path: '/dashboard', icon: Briefcase },
     { name: 'Configurações', path: '/settings', icon: Settings },
   ];
 

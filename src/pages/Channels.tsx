@@ -89,9 +89,9 @@ export const Channels = () => {
     <div className="space-y-8 max-w-6xl mx-auto px-4 sm:px-6 pb-12">
       {/* Header */}
       <PageHeader
-        title="Canais"
-        description="Use estes links para receber contatos no CRM mesmo sem ter um site pronto. Quando alguém preenche o formulário, o contato aparece automaticamente na Tela Hoje."
-        breadcrumbItems={[{ label: 'Canais' }]}
+        title="Canais de entrada"
+        description="Use estes links para receber contatos no sistema mesmo sem ter um site pronto. Quando alguém preenche o formulário, o contato aparece automaticamente na aba Hoje."
+        breadcrumbItems={[{ label: 'Canais de entrada' }]}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button 

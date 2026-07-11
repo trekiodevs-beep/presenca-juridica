@@ -80,13 +80,13 @@ export const LeadDetail = () => {
       await addEvent({
         leadId: lead.id,
         type: 'action_created',
-        description: nextActionText ? `Próxima ação agendada: "${nextActionText}"` : 'Próxima ação removida',
+        description: nextActionText ? `Próxima providência agendada: "${nextActionText}"` : 'Próxima providência removida',
         createdBy: user?.id || 'Sistema'
       });
-      showToast('Próxima ação salva com sucesso.', 'success');
+      showToast('Próxima providência salva com sucesso.', 'success');
     } catch (e) {
       console.error(e);
-      showToast('Erro ao salvar próxima ação.', 'error');
+      showToast('Erro ao salvar próxima providência.', 'error');
     } finally {
       setIsSavingAction(false);
     }
@@ -135,14 +135,14 @@ export const LeadDetail = () => {
 
   const getEventTitle = (type: string) => {
     switch (type) {
-      case 'created': return 'Contato Cadastrado';
-      case 'status_changed': return 'Mudança de Status';
-      case 'responsible_assigned': return 'Responsável Atribuído';
-      case 'whatsapp_opened': return 'Atendimento via WhatsApp';
-      case 'note_added': return 'Nota Interna Adicionada';
-      case 'action_created': return 'Próxima Ação Agendada';
-      case 'action_completed': return 'Ação Concluída';
-      default: return 'Evento';
+      case 'created': return 'Contato criado';
+      case 'status_changed': return 'Situação atualizada';
+      case 'responsible_assigned': return 'Responsável atribuído';
+      case 'whatsapp_opened': return 'WhatsApp aberto';
+      case 'note_added': return 'Anotação registrada';
+      case 'action_created': return 'Próxima providência agendada';
+      case 'action_completed': return 'Providência concluída';
+      default: return 'Evento do sistema';
     }
   };
 
@@ -185,14 +185,14 @@ export const LeadDetail = () => {
         {/* Left Column - Details */}
         <div className="lg:col-span-2 space-y-6">
           
-          {/* Highlight: Próxima Melhor Ação */}
+          {/* Highlight: Próxima providência */}
           <div className="bg-brand-900 rounded-2xl p-6 shadow-md text-white relative overflow-hidden">
             <div className="absolute top-0 right-0 w-64 h-64 bg-brand-800 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 opacity-50" />
             
             <div className="relative z-10">
               <h2 className="text-sm font-semibold text-brand-300 uppercase tracking-widest mb-4 flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4" />
-                Próxima melhor ação
+                Próxima providência recomendada
               </h2>
               
               <div className="mb-6">
@@ -203,7 +203,7 @@ export const LeadDetail = () => {
                     </p>
                     {!lead.nextActionText && (
                       <p className="text-brand-300 text-xs italic font-medium">
-                        Sugestão automática de ação
+                        Sugestão automática do sistema
                       </p>
                     )}
                     {lead.nextActionText && lead.nextActionAt && (
@@ -214,7 +214,7 @@ export const LeadDetail = () => {
                   </>
                 ) : (
                   <p className="text-xl font-medium text-brand-200">
-                    Nenhuma ação definida para este contato.
+                    Nenhuma providência definida para este contato.
                   </p>
                 )}
               </div>
@@ -239,7 +239,7 @@ export const LeadDetail = () => {
                   variant="ghost" 
                   className="text-brand-300 hover:text-white hover:bg-brand-800"
                 >
-                  Copiar template
+                  Copiar mensagem
                 </Button>
               </div>
             </div>
@@ -247,7 +247,7 @@ export const LeadDetail = () => {
 
           <Card className="border-slate-200 shadow-sm">
             <CardHeader className="bg-slate-50 border-b border-slate-100 py-4">
-              <CardTitle className="text-base text-brand-900">Resumo do Contato</CardTitle>
+              <CardTitle className="text-base text-brand-900">Síntese do atendimento inicial</CardTitle>
             </CardHeader>
             <CardContent className="p-6">
               {lead.summary ? (
@@ -269,7 +269,7 @@ export const LeadDetail = () => {
 
           <Card id="notes-section" className="border-slate-200 shadow-sm">
             <CardHeader className="bg-slate-50 border-b border-slate-100 py-4">
-              <CardTitle className="text-base text-brand-900">Anotações Internas</CardTitle>
+              <CardTitle className="text-base text-brand-900">Anotações do atendimento</CardTitle>
             </CardHeader>
             <CardContent className="p-6 space-y-4">
               {lead.notes && (
@@ -300,12 +300,12 @@ export const LeadDetail = () => {
           
           <Card className="border-slate-200 shadow-sm">
             <CardHeader className="bg-slate-50 border-b border-slate-100 py-4">
-              <CardTitle className="text-base text-brand-900">Próximos Passos</CardTitle>
+              <CardTitle className="text-base text-brand-900">Próximas providências</CardTitle>
             </CardHeader>
             <CardContent className="p-5 space-y-6">
               
               <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Status Atual</label>
+                <label className="block text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Situação atual</label>
                 <Select value={lead.status} onChange={handleStatusChange} className="w-full text-sm">
                   <option value="Novo contato">Novo contato</option>
                   <option value="Aguardando triagem">Aguardando triagem</option>
@@ -320,7 +320,7 @@ export const LeadDetail = () => {
               </div>
 
               <div className="pt-5 border-t border-slate-100">
-                <label className="block text-xs font-semibold text-slate-500 mb-3 uppercase tracking-wider">Agendar Próxima Ação</label>
+                <label className="block text-xs font-semibold text-slate-500 mb-3 uppercase tracking-wider">Agendar próxima providência</label>
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1.5">O que fazer a seguir?</label>
@@ -347,7 +347,7 @@ export const LeadDetail = () => {
                     className="w-full text-sm"
                     disabled={isSavingAction}
                   >
-                    {isSavingAction ? 'Salvando...' : 'Salvar agendamento'}
+                    {isSavingAction ? 'Salvando...' : 'Salvar providência'}
                   </Button>
                 </div>
               </div>
@@ -376,7 +376,7 @@ export const LeadDetail = () => {
 
           <Card className="border-slate-200 shadow-sm overflow-hidden">
             <CardHeader className="bg-slate-50 border-b border-slate-100 py-4">
-              <CardTitle className="text-base text-brand-900">Histórico de Atividades</CardTitle>
+              <CardTitle className="text-base text-brand-900">Histórico do atendimento</CardTitle>
             </CardHeader>
             <CardContent className="p-5">
               {leadEvents.length > 0 ? (

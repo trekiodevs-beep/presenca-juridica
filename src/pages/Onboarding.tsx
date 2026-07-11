@@ -119,17 +119,17 @@ export const Onboarding = () => {
             <Rocket className="w-5 h-5 text-brand-600" /> Seu CRM está pronto para receber contatos.
           </h2>
           <p className="text-brand-700 text-sm mb-6">
-            Agora você pode usar seu link público no Instagram, WhatsApp, site ou landing page. Quando alguém preencher o formulário, o contato aparecerá automaticamente na Tela Hoje.
+            Agora você pode usar seu link público no Instagram, WhatsApp, site ou landing page. Quando alguém preencher o formulário, a solicitação aparecerá automaticamente na aba Hoje.
           </p>
           <div className="flex flex-wrap gap-3">
             <Button asChild className="bg-brand-700 hover:bg-brand-800">
-              <Link to="/canais">Ir para Canais</Link>
+              <Link to="/canais">Ir para Canais de entrada</Link>
             </Button>
             <Button variant="outline" onClick={handleCopyLink} className="gap-2 bg-white text-brand-700 border-brand-200 hover:bg-brand-100">
               <Copy className="w-4 h-4" /> Copiar link público
             </Button>
             <Button variant="ghost" asChild className="text-brand-700 hover:text-brand-800 hover:bg-brand-100">
-              <Link to="/">Ver Tela Hoje</Link>
+              <Link to="/">Ver aba Hoje</Link>
             </Button>
           </div>
         </div>
@@ -201,7 +201,7 @@ export const Onboarding = () => {
                 <CheckCircle2 className="w-4 h-4" /> Contato de teste criado
               </span>
               <Button variant="outline" asChild size="sm">
-                <Link to="/">Ver na Tela Hoje</Link>
+                <Link to="/">Ver na aba Hoje</Link>
               </Button>
               {testContact && (
                 <Button variant="ghost" asChild size="sm">
@@ -218,10 +218,10 @@ export const Onboarding = () => {
 
         {/* Step 4 */}
         <StepCard
-          title="Confira a Tela Hoje"
-          description="A Tela Hoje mostra os contatos que precisam de triagem, retorno ou próxima ação."
+          title="Confira a aba Hoje"
+          description="A aba Hoje mostra as solicitações que precisam de triagem inicial, retorno ou próxima providência."
           isCompleted={isTodayValidated}
-          microcopy="Quando um cliente real preencher seu formulário, ele aparecerá aqui como triagem pendente."
+          microcopy="Quando um cliente real preencher seu formulário, ele aparecerá aqui aguardando triagem."
         >
           {isTodayValidated ? (
              <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
@@ -230,7 +230,7 @@ export const Onboarding = () => {
           ) : (
             <Button asChild variant="outline" className="gap-2">
               <Link to="/">
-                Ver Tela Hoje <ArrowRight className="w-4 h-4" />
+                Ver aba Hoje <ArrowRight className="w-4 h-4" />
               </Link>
             </Button>
           )}
@@ -239,9 +239,9 @@ export const Onboarding = () => {
         {/* Step 5 */}
         <StepCard
           title="Retorne pelo WhatsApp com histórico"
-          description="Abra o contato no CRM, clique em WhatsApp e registre uma anotação. Assim o atendimento inicial fica rastreável."
+          description="Abra o contato no sistema, clique em WhatsApp e registre uma anotação. Assim o atendimento inicial fica rastreável."
           isCompleted={isWhatsappValidated}
-          microcopy="O CRM não envia mensagens automáticas. Ele abre o WhatsApp com uma mensagem humanizada e registra a ação no histórico."
+          microcopy="O sistema não envia mensagens automáticas. Ele abre o WhatsApp com uma mensagem humanizada e registra a providência no histórico."
         >
           {isWhatsappValidated ? (
             <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
