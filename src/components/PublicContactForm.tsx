@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { createLead } from '../services/db';
+import { createPublicLead } from '../services/db';
 import { PublicForm as PublicFormType } from '../types';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
@@ -51,7 +51,7 @@ export const PublicContactForm: React.FC<PublicContactFormProps> = ({ officeForm
     try {
       const source = searchParams.get('source') || 'Formulário Público';
       
-      const leadData = {
+      const publicPayload: any = {
         officeId: officeForm.officeId,
         name: formData.name,
         phone: formData.phone.replace(/\D/g, ''),
@@ -60,24 +60,23 @@ export const PublicContactForm: React.FC<PublicContactFormProps> = ({ officeForm
         state: formData.state,
         area: formData.area as any,
         summary: formData.summary,
-        notes: '',
         consentLgpd: formData.consentLgpd,
         source: source as any,
         status: 'Novo contato' as const,
         priority: 'Média' as const,
-        responsibleUserId: null,
-        nextActionText: null,
-        nextActionAt: null,
-        lastWhatsappClickAt: null,
-        createdVia: 'public_form',
+        createdVia: 'public_form' as const,
         publicFormSlug: officeSlug,
-        utmSource: searchParams.get('utm_source') || null,
-        utmMedium: searchParams.get('utm_medium') || null,
-        utmCampaign: searchParams.get('utm_campaign') || null,
-        archivedAt: null,
       };
 
-      await createLead(leadData as any);
+      const utmSource = searchParams.get('utm_source');
+      const utmMedium = searchParams.get('utm_medium');
+      const utmCampaign = searchParams.get('utm_campaign');
+
+      if (utmSource) publicPayload.utmSource = utmSource;
+      if (utmMedium) publicPayload.utmMedium = utmMedium;
+      if (utmCampaign) publicPayload.utmCampaign = utmCampaign;
+
+      await createPublicLead(publicPayload);
       setSuccess(true);
     } catch (err: any) {
       console.error('Falha ao enviar formulário público:', err?.message || err);

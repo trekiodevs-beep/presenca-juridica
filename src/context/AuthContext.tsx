@@ -3,7 +3,7 @@ import { User, Office } from '../types';
 import { mockUser, mockOffice } from '../mockData';
 import { auth, googleProvider } from '../lib/firebase';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
-import { getOrCreateUser, getOfficeById, updateUser } from '../services/db';
+import { getOrCreateUser, getOfficeById } from '../services/db';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK_DATA === 'true';
 
@@ -89,7 +89,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   
   const updateUserOfficeId = async (officeId: string) => {
     if (user && !USE_MOCK) {
-      await updateUser(user.id, { officeId });
       setUser({ ...user, officeId });
       const officeData = await getOfficeById(officeId);
       setOffice(officeData);

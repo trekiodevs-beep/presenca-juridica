@@ -1,62 +1,293 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
     function isAuthenticated() {
       return request.auth != null;
     }
-    
+
     function getUserOfficeId() {
-      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+      return isAuthenticated()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
         ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.officeId
         : '';
     }
 
+    function hasValidPublicFormBinding() {
+      return request.resource.data.publicFormSlug is string
+        && request.resource.data.publicFormSlug != ''
+        && exists(
+          /databases/$(database)/documents/publicForms/$(request.resource.data.publicFormSlug)
+        )
+        && get(
+          /databases/$(database)/documents/publicForms/$(request.resource.data.publicFormSlug)
+        ).data.isActive == true
+        && get(
+          /databases/$(database)/documents/publicForms/$(request.resource.data.publicFormSlug)
+        ).data.officeId == request.resource.data.officeId;
+    }
+
     match /users/{userId} {
-      // Users can only read and write their own profile
-      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      allow read: if isAuthenticated()
+        && request.auth.uid == userId;
+
+      allow create: if isAuthenticated()
+        && request.auth.uid == userId
+        && request.resource.data.id == userId
+        && request.resource.data.role == 'admin'
+        && request.resource.data.officeId == ''
+        && request.resource.data.keys().hasOnly([
+          'id',
+          'name',
+          'email',
+          'role',
+          'officeId',
+          'createdAt'
+        ]);
+
+      allow update: if isAuthenticated()
+        && request.auth.uid == userId
+        && request.resource.data.role == resource.data.role
+        && (
+          (
+            request.resource.data.officeId == resource.data.officeId
+            && request.resource.data
+              .diff(resource.data)
+              .affectedKeys()
+              .hasOnly([
+                'name',
+                'email',
+                'updatedAt'
+              ])
+          )
+          ||
+          (
+            resource.data.officeId == ''
+            && request.resource.data.officeId != ''
+            && request.resource.data
+              .diff(resource.data)
+              .affectedKeys()
+              .hasOnly([
+                'officeId',
+                'updatedAt'
+              ])
+            && getAfter(
+              /databases/$(database)/documents/offices/$(request.resource.data.officeId)
+            ).data.ownerUserId == request.auth.uid
+          )
+        );
     }
 
     match /offices/{officeId} {
-      // Any authenticated user can create an office (during onboarding)
-      allow create: if isAuthenticated();
-      // Users can only read/update/delete their own office
-      allow read, update, delete: if isAuthenticated() && getUserOfficeId() == officeId;
+      // O escritório só pode ser criado no mesmo batch que vincula o usuário.
+      allow create: if isAuthenticated()
+        && request.resource.data.ownerUserId == request.auth.uid
+        && request.resource.data.id == officeId
+        && exists(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        )
+        && get(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        ).data.officeId == ''
+        && getAfter(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        ).data.officeId == officeId
+        && getAfter(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        ).data.role == get(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        ).data.role;
+
+      allow read: if isAuthenticated()
+        && getUserOfficeId() == officeId;
+
+      allow update: if isAuthenticated()
+        && getUserOfficeId() == officeId
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.ownerUserId == resource.data.ownerUserId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data
+          .diff(resource.data)
+          .affectedKeys()
+          .hasOnly([
+            'name',
+            'lawyerName',
+            'oab',
+            'city',
+            'state',
+            'whatsapp',
+            'email',
+            'areas',
+            'slug',
+            'updatedAt'
+          ]);
+
+      // Delete permanece bloqueado por ausência de allow delete.
     }
 
     match /publicForms/{slug} {
-      allow read: if true;
-      allow write: if isAuthenticated();
+      allow get: if resource.data.isActive == true
+        || (
+          isAuthenticated()
+          && getUserOfficeId() == resource.data.officeId
+        );
+
+      allow create: if isAuthenticated()
+        && getUserOfficeId() != ''
+        && request.resource.data.officeId == getUserOfficeId()
+        && request.resource.data.slug == slug
+        && exists(
+          /databases/$(database)/documents/offices/$(request.resource.data.officeId)
+        )
+        && request.resource.data.keys().hasOnly([
+          'slug',
+          'officeId',
+          'officeName',
+          'lawyerName',
+          'whatsapp',
+          'email',
+          'city',
+          'state',
+          'areas',
+          'isActive',
+          'createdAt',
+          'updatedAt'
+        ]);
+
+      allow update: if isAuthenticated()
+        && getUserOfficeId() != ''
+        && resource.data.officeId == getUserOfficeId()
+        && request.resource.data.officeId == resource.data.officeId
+        && request.resource.data.slug == resource.data.slug
+        && request.resource.data
+          .diff(resource.data)
+          .affectedKeys()
+          .hasOnly([
+            'officeName',
+            'lawyerName',
+            'whatsapp',
+            'email',
+            'city',
+            'state',
+            'areas',
+            'isActive',
+            'updatedAt'
+          ]);
+
+      // List e delete permanecem bloqueados.
     }
 
     match /leads/{leadId} {
-      allow create: if (isAuthenticated() && getUserOfficeId() == request.resource.data.officeId) || (
-        request.resource.data.createdVia == 'public_form' &&
-        request.resource.data.officeId is string && request.resource.data.officeId != '' &&
-        request.resource.data.publicFormSlug is string && request.resource.data.publicFormSlug != '' &&
-        request.resource.data.consentLgpd == true &&
-        request.resource.data.status == 'Novo contato' &&
-        request.resource.data.priority == 'Média' &&
-        request.resource.data.name is string && request.resource.data.name != '' &&
-        request.resource.data.phone is string && request.resource.data.phone != '' &&
-        request.resource.data.summary is string && request.resource.data.summary != '' &&
-        !('cpf' in request.resource.data) &&
-        !('rg' in request.resource.data) &&
-        !('numeroProcesso' in request.resource.data) &&
-        !('documentos' in request.resource.data) &&
-        !('files' in request.resource.data) &&
-        !('attachments' in request.resource.data)
+      allow create: if (
+        isAuthenticated()
+        && getUserOfficeId() != ''
+        && getUserOfficeId() == request.resource.data.officeId
+      ) || (
+        request.resource.data.createdVia == 'public_form'
+        && request.resource.data.keys().hasOnly([
+          'id',
+          'officeId',
+          'name',
+          'phone',
+          'email',
+          'city',
+          'state',
+          'area',
+          'summary',
+          'consentLgpd',
+          'source',
+          'status',
+          'priority',
+          'createdVia',
+          'publicFormSlug',
+          'utmSource',
+          'utmMedium',
+          'utmCampaign',
+          'createdAt',
+          'updatedAt'
+        ])
+        && request.resource.data.id is string
+        && request.resource.data.id == leadId
+        && request.resource.data.officeId is string
+        && request.resource.data.officeId.size() > 0
+        && request.resource.data.officeId.size() <= 128
+        && hasValidPublicFormBinding()
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.phone is string
+        && request.resource.data.phone.matches('^[0-9]{10,15}$')
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.city is string
+        && request.resource.data.city.size() >= 2
+        && request.resource.data.city.size() <= 120
+        && request.resource.data.state is string
+        && request.resource.data.state.matches('^[A-Z]{2}$')
+        && request.resource.data.area is string
+        && request.resource.data.area.size() >= 2
+        && request.resource.data.area.size() <= 120
+        && request.resource.data.summary is string
+        && request.resource.data.summary.size() >= 10
+        && request.resource.data.summary.size() <= 2000
+        && request.resource.data.source is string
+        && request.resource.data.source.size() >= 1
+        && request.resource.data.source.size() <= 120
+        && request.resource.data.publicFormSlug is string
+        && request.resource.data.publicFormSlug.size() >= 1
+        && request.resource.data.publicFormSlug.size() <= 160
+        && (
+          !('utmSource' in request.resource.data)
+          || (
+            request.resource.data.utmSource is string
+            && request.resource.data.utmSource.size() <= 200
+          )
+        )
+        && (
+          !('utmMedium' in request.resource.data)
+          || (
+            request.resource.data.utmMedium is string
+            && request.resource.data.utmMedium.size() <= 200
+          )
+        )
+        && (
+          !('utmCampaign' in request.resource.data)
+          || (
+            request.resource.data.utmCampaign is string
+            && request.resource.data.utmCampaign.size() <= 200
+          )
+        )
+        && request.resource.data.consentLgpd == true
+        && request.resource.data.status == 'Novo contato'
+        && request.resource.data.priority == 'Média'
+        && !('cpf' in request.resource.data)
+        && !('rg' in request.resource.data)
+        && !('numeroProcesso' in request.resource.data)
+        && !('documentos' in request.resource.data)
+        && !('files' in request.resource.data)
+        && !('attachments' in request.resource.data)
       );
-      allow read, update, delete: if isAuthenticated() && getUserOfficeId() == resource.data.officeId;
+
+      allow read, update, delete: if isAuthenticated()
+        && getUserOfficeId() == resource.data.officeId;
     }
 
     match /leadEvents/{eventId} {
-      allow create: if (isAuthenticated() && getUserOfficeId() == request.resource.data.officeId) || request.resource.data.createdBy == 'public_form';
-      allow read, update, delete: if isAuthenticated() && getUserOfficeId() == resource.data.officeId;
+      allow create: if (
+        isAuthenticated()
+        && getUserOfficeId() == request.resource.data.officeId
+      ) || request.resource.data.createdBy == 'public_form';
+
+      allow read, update, delete: if isAuthenticated()
+        && getUserOfficeId() == resource.data.officeId;
     }
 
     match /tasks/{taskId} {
-      allow create: if isAuthenticated() && getUserOfficeId() == request.resource.data.officeId;
-      allow read, update, delete: if isAuthenticated() && getUserOfficeId() == resource.data.officeId;
+      allow create: if isAuthenticated()
+        && getUserOfficeId() == request.resource.data.officeId;
+
+      allow read, update, delete: if isAuthenticated()
+        && getUserOfficeId() == resource.data.officeId;
     }
   }
 }

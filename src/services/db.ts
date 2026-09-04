@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, orderBy, onSnapshot, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { User, Office, Lead, LeadEvent, Task, PublicForm } from '../types';
 
@@ -115,14 +115,26 @@ export const createOffice = async (office: Omit<Office, 'id' | 'createdAt' | 'up
   if (USE_MOCK) return 'mock-office';
   const path = 'offices';
   try {
+    const userId = auth.currentUser?.uid;
+    if (!userId) throw new Error('User not authenticated');
+
     const newOfficeRef = doc(collection(db, 'offices'));
-    const newOffice: Office = {
+    const newOffice = {
       ...office,
       id: newOfficeRef.id,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      ownerUserId: userId
     };
-    await setDoc(newOfficeRef, newOffice);
+
+    const userRef = doc(db, 'users', userId);
+    const batch = writeBatch(db);
+
+    batch.set(newOfficeRef, newOffice);
+    batch.update(userRef, { officeId: newOfficeRef.id, updatedAt: serverTimestamp() });
+    
+    await batch.commit();
+
     return newOfficeRef.id;
   } catch (error) {
     return handleFirestoreError(error, OperationType.CREATE, path);
@@ -223,6 +235,78 @@ export const createLead = async (lead: Omit<Lead, 'id' | 'createdAt' | 'updatedA
         type: 'created',
         description: lead.createdVia === 'public_form' ? 'Contato criado a partir do formulário público' : 'Contato criado no sistema',
         createdBy: lead.createdVia === 'public_form' ? 'public_form' : (lead.responsibleUserId || 'Sistema')
+      });
+    } catch (eventError) {
+      console.warn('Failed to auto-create lead event, but lead was created:', eventError);
+    }
+    
+    return newLeadRef.id;
+  } catch (error) {
+    return handleFirestoreError(error, OperationType.CREATE, path);
+  }
+};
+
+export const createPublicLead = async (
+  leadData: {
+    officeId: string;
+    name: string;
+    phone: string;
+    email: string;
+    city: string;
+    state: string;
+    area: any;
+    summary: string;
+    consentLgpd: boolean;
+    source: any;
+    status: 'Novo contato';
+    priority: 'Média';
+    createdVia: 'public_form';
+    publicFormSlug: string;
+    utmSource?: string;
+    utmMedium?: string;
+    utmCampaign?: string;
+  }
+): Promise<string> => {
+  if (USE_MOCK) return 'mock-lead';
+  
+  const path = 'leads';
+  try {
+    const newLeadRef = doc(collection(db, 'leads'));
+    const now = new Date().toISOString();
+    
+    const newLead: any = {
+      id: newLeadRef.id,
+      officeId: leadData.officeId,
+      name: leadData.name,
+      phone: leadData.phone,
+      email: leadData.email,
+      city: leadData.city,
+      state: leadData.state,
+      area: leadData.area,
+      summary: leadData.summary,
+      consentLgpd: leadData.consentLgpd,
+      source: leadData.source,
+      status: leadData.status,
+      priority: leadData.priority,
+      createdVia: leadData.createdVia,
+      publicFormSlug: leadData.publicFormSlug,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    if (leadData.utmSource) newLead.utmSource = leadData.utmSource;
+    if (leadData.utmMedium) newLead.utmMedium = leadData.utmMedium;
+    if (leadData.utmCampaign) newLead.utmCampaign = leadData.utmCampaign;
+    
+    await setDoc(newLeadRef, newLead);
+    
+    try {
+      await addLeadEvent({
+        officeId: leadData.officeId,
+        leadId: newLeadRef.id,
+        type: 'created',
+        description: 'Contato criado a partir do formulário público',
+        createdBy: 'public_form'
       });
     } catch (eventError) {
       console.warn('Failed to auto-create lead event, but lead was created:', eventError);
