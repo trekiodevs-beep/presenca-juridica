@@ -1,6 +1,5 @@
 import { collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, orderBy, onSnapshot, serverTimestamp, writeBatch } from 'firebase/firestore';
-import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
-import { db, auth, storage } from '../lib/firebase';
+import { db, auth } from '../lib/firebase';
 import {
   User,
   Office,
@@ -13,8 +12,14 @@ import {
   FinancialRecord,
   ClientPortalAccess,
   DocumentCategory,
+  Membership,
+  UsageCounter,
+  AuditLog,
 } from '../types';
 import { createTrialWindow } from '../lib/trial';
+import { getPlanLimits } from '../lib/plans';
+import { createInternalLead, createPublicLeadCallable } from '../lib/leads';
+import { createDocumentUpload, finalizeDocumentUpload } from '../lib/documents';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK_DATA === 'true';
 
@@ -142,6 +147,7 @@ export const createOffice = async (office: Omit<Office, 'id' | 'createdAt' | 'up
     const newOffice = {
       ...office,
       ...trialWindow,
+      limits: getPlanLimits('trial'),
       id: newOfficeRef.id,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -149,10 +155,24 @@ export const createOffice = async (office: Omit<Office, 'id' | 'createdAt' | 'up
     };
 
     const userRef = doc(db, 'users', userId);
+    const membershipRef = doc(db, 'memberships', `${newOfficeRef.id}_${userId}`);
+    const usageRef = doc(db, 'usageCounters', newOfficeRef.id);
     const batch = writeBatch(db);
 
     batch.set(newOfficeRef, newOffice);
-    batch.update(userRef, { officeId: newOfficeRef.id, updatedAt: serverTimestamp() });
+    batch.set(membershipRef, {
+      id: membershipRef.id,
+      officeId: newOfficeRef.id,
+      userId,
+      email: auth.currentUser?.email || office.email || '',
+      name: auth.currentUser?.displayName || office.lawyerName || '',
+      role: 'owner',
+      status: 'active',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    batch.set(usageRef, { officeId: newOfficeRef.id, users: 1, contacts: 0, storageBytes: 0, storageReservedBytes: 0, refreshedAt: new Date().toISOString() });
+    batch.update(userRef, { officeId: newOfficeRef.id, role: 'owner', updatedAt: serverTimestamp() });
     
     await batch.commit();
 
@@ -171,11 +191,14 @@ export const ensureOfficeTrial = async (office: Office): Promise<Office> => {
     const trialWindow = createTrialWindow();
     const updatedAt = new Date().toISOString();
 
-    await updateDoc(officeRef, { ...trialWindow, updatedAt });
+    const trialEndsAtMs = new Date(trialWindow.trialEndsAt).getTime();
+    await updateDoc(officeRef, { ...trialWindow, trialEndsAtMs, limits: getPlanLimits('trial'), updatedAt });
 
     return {
       ...office,
       ...trialWindow,
+      trialEndsAtMs,
+      limits: getPlanLimits('trial'),
       updatedAt,
     };
   } catch (error) {
@@ -254,36 +277,10 @@ export const listenLeadsByOffice = (officeId: string, callback: (leads: Lead[]) 
 
 export const createLead = async (lead: Omit<Lead, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
   if (USE_MOCK) return 'mock-lead';
-  
-  const path = 'leads';
   try {
-    const newLeadRef = doc(collection(db, 'leads'));
-    const now = new Date().toISOString();
-    
-    const newLead: Lead = {
-      ...lead,
-      id: newLeadRef.id,
-      createdAt: now,
-      updatedAt: now,
-    };
-    
-    const eventRef = doc(collection(db, 'leadEvents'));
-    const batch = writeBatch(db);
-    batch.set(newLeadRef, newLead);
-    batch.set(eventRef, {
-      id: eventRef.id,
-      officeId: lead.officeId,
-      leadId: newLeadRef.id,
-      type: 'created',
-      description: lead.createdVia === 'public_form' ? 'Contato criado a partir do formulário público' : 'Contato criado no sistema',
-      createdBy: lead.createdVia === 'public_form' ? 'public_form' : (lead.responsibleUserId || 'Sistema'),
-      createdAt: now,
-    });
-    await batch.commit();
-    
-    return newLeadRef.id;
+    return await createInternalLead(lead);
   } catch (error) {
-    return handleFirestoreError(error, OperationType.CREATE, path);
+    return handleFirestoreError(error, OperationType.CREATE, 'leads');
   }
 };
 
@@ -310,52 +307,10 @@ export const createPublicLead = async (
 ): Promise<string> => {
   if (USE_MOCK) return 'mock-lead';
   
-  const path = 'leads';
   try {
-    const newLeadRef = doc(collection(db, 'leads'));
-    const now = new Date().toISOString();
-    
-    const newLead: any = {
-      id: newLeadRef.id,
-      officeId: leadData.officeId,
-      name: leadData.name,
-      phone: leadData.phone,
-      email: leadData.email,
-      city: leadData.city,
-      state: leadData.state,
-      area: leadData.area,
-      summary: leadData.summary,
-      consentLgpd: leadData.consentLgpd,
-      source: leadData.source,
-      status: leadData.status,
-      priority: leadData.priority,
-      createdVia: leadData.createdVia,
-      publicFormSlug: leadData.publicFormSlug,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    if (leadData.utmSource) newLead.utmSource = leadData.utmSource;
-    if (leadData.utmMedium) newLead.utmMedium = leadData.utmMedium;
-    if (leadData.utmCampaign) newLead.utmCampaign = leadData.utmCampaign;
-    
-    const eventRef = doc(collection(db, 'leadEvents'));
-    const batch = writeBatch(db);
-    batch.set(newLeadRef, newLead);
-    batch.set(eventRef, {
-      id: eventRef.id,
-      officeId: leadData.officeId,
-      leadId: newLeadRef.id,
-      type: 'created',
-      description: 'Contato criado a partir do formulário público',
-      createdBy: 'public_form',
-      createdAt: now,
-    });
-    await batch.commit();
-    
-    return newLeadRef.id;
+    return await createPublicLeadCallable(leadData as unknown as Record<string, unknown>);
   } catch (error) {
-    return handleFirestoreError(error, OperationType.CREATE, path);
+    return handleFirestoreError(error, OperationType.CREATE, 'leads');
   }
 };
 
@@ -386,6 +341,45 @@ export const listenEventsByOffice = (officeId: string, callback: (events: LeadEv
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, path);
     });
+  } catch (error) {
+    return handleFirestoreError(error, OperationType.LIST, path);
+  }
+};
+
+// --------------------------------------------------------
+// SAAS CONTROL PLANE SERVICES
+// --------------------------------------------------------
+export const listenMembershipsByOffice = (officeId: string, callback: (memberships: Membership[]) => void) => {
+  if (USE_MOCK) return () => {};
+  const path = 'memberships';
+  try {
+    const membershipsQuery = query(collection(db, 'memberships'), where('officeId', '==', officeId), orderBy('createdAt', 'asc'));
+    return onSnapshot(membershipsQuery, snapshot => callback(snapshot.docs.map(item => item.data() as Membership)), error => {
+      handleFirestoreError(error, OperationType.LIST, path);
+    });
+  } catch (error) {
+    return handleFirestoreError(error, OperationType.LIST, path);
+  }
+};
+
+export const getUsageCounter = async (officeId: string): Promise<UsageCounter | null> => {
+  if (USE_MOCK) return null;
+  const path = `usageCounters/${officeId}`;
+  try {
+    const snapshot = await getDoc(doc(db, 'usageCounters', officeId));
+    return snapshot.exists() ? snapshot.data() as UsageCounter : null;
+  } catch (error) {
+    return handleFirestoreError(error, OperationType.GET, path);
+  }
+};
+
+export const listAuditLogs = async (officeId: string): Promise<AuditLog[]> => {
+  if (USE_MOCK) return [];
+  const path = 'auditLogs';
+  try {
+    const logsQuery = query(collection(db, 'auditLogs'), where('officeId', '==', officeId), orderBy('createdAt', 'desc'));
+    const snapshot = await getDocs(logsQuery);
+    return snapshot.docs.map(item => item.data() as AuditLog);
   } catch (error) {
     return handleFirestoreError(error, OperationType.LIST, path);
   }
@@ -500,40 +494,11 @@ export const uploadLeadDocument = async ({
     if (!file) throw new Error('Arquivo não informado');
     if (file.size > 15 * 1024 * 1024) throw new Error('Arquivo excede o limite de 15MB');
 
-    const documentRef = doc(collection(db, 'leadDocuments'));
-    const storagePath = `offices/${officeId}/leads/${leadId}/documents/${documentRef.id}/${file.name}`;
-    const fileRef = ref(storage, storagePath);
-
-    await uploadBytes(fileRef, file, {
-      contentType: file.type || 'application/octet-stream',
-      customMetadata: {
-        officeId,
-        leadId,
-        documentId: documentRef.id,
-      },
-    });
-
-    const downloadUrl = await getDownloadURL(fileRef);
-    const now = new Date().toISOString();
-    const documentData: LeadDocument = {
-      id: documentRef.id,
-      officeId,
-      leadId,
-      name: file.name,
-      fileName: file.name,
-      contentType: file.type || 'application/octet-stream',
-      size: file.size,
-      storagePath,
-      downloadUrl,
-      category,
-      visibleInPortal,
-      uploadedBy,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    await setDoc(documentRef, documentData);
-    return documentRef.id;
+    const contentType = file.type || 'application/octet-stream';
+    const reservation = await createDocumentUpload({ leadId, fileName: file.name, contentType, size: file.size, category, visibleInPortal });
+    const response = await fetch(reservation.uploadUrl, { method: 'PUT', headers: { 'Content-Type': contentType }, body: file });
+    if (!response.ok) throw new Error(`Falha no envio do arquivo (${response.status}).`);
+    return (await finalizeDocumentUpload(reservation.uploadId)).documentId;
   } catch (error) {
     return handleFirestoreError(error, OperationType.CREATE, path);
   }
@@ -695,6 +660,7 @@ export const upsertClientPortalAccess = async (
       pendingItems: data.pendingItems || [],
       documents: data.documents || [],
       appointments: data.appointments || [],
+      expiresAtMs: data.expiresAt ? new Date(data.expiresAt).getTime() : null,
       createdAt: snap.exists() ? (snap.data() as ClientPortalAccess).createdAt : now,
       updatedAt: now,
     };

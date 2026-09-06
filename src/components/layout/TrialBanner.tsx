@@ -4,17 +4,20 @@ import { AlertTriangle, CheckCircle2, Clock, CreditCard } from 'lucide-react';
 
 import { useAuth } from '../../context/AuthContext';
 import { getTrialState, TRIAL_DAYS } from '../../lib/trial';
+import { getAccessMode, subscriptionLabel } from '../../lib/access';
 import { cn } from '../../lib/utils';
 
 export const TrialBanner = () => {
   const { office } = useAuth();
   const trialState = getTrialState(office);
 
-  if (!trialState || trialState.kind === 'active') return null;
+  const accessMode = getAccessMode(office);
+  if (!trialState || trialState.kind === 'active' && accessMode === 'full') return null;
 
-  const isExpired = trialState.kind === 'expired';
+  const isExpired = trialState.kind === 'expired' || accessMode === 'read_only';
   const isNotConfigured = trialState.kind === 'not_configured';
-  const Icon = isExpired ? AlertTriangle : isNotConfigured ? CreditCard : Clock;
+  const isGrace = accessMode === 'grace';
+  const Icon = isExpired ? AlertTriangle : isNotConfigured ? CreditCard : isGrace ? CreditCard : Clock;
 
   return (
     <div
@@ -33,21 +36,27 @@ export const TrialBanner = () => {
           <div>
             <p className="font-semibold">
               {isExpired
-                ? `Seu teste de ${TRIAL_DAYS} dias expirou.`
+                ? office?.subscriptionStatus === 'TRIALING' || office?.subscriptionStatus === 'EXPIRED'
+                  ? `Seu teste de ${TRIAL_DAYS} dias expirou.`
+                  : 'O acesso do escritório está suspenso.'
                 : isNotConfigured
                   ? `Configure o teste comercial de ${TRIAL_DAYS} dias para este escritório.`
-                  : `Teste grátis ativo: ${trialState.label}.`}
+                  : isGrace
+                    ? 'Pagamento pendente: regularize sua assinatura.'
+                    : `Teste grátis ativo: ${trialState.label}.`}
             </p>
             <p className="text-xs opacity-80">
               {isExpired
-                ? 'O acesso ainda está liberado nesta fase piloto, mas este escritório precisa virar plano pago para operação comercial.'
-                : 'Use este período para validar captação, triagem, retorno pelo WhatsApp e rotina de atendimento.'}
+                ? 'O escritório está em modo somente leitura. Regularize o plano para retomar novos contatos, tarefas e atualizações.'
+                : accessMode === 'grace'
+                  ? `Pagamento pendente: ${subscriptionLabel[office?.subscriptionStatus || 'PAST_DUE']}. O acesso completo será mantido durante a tolerância.`
+                  : 'Use este período para validar captação, triagem, retorno pelo WhatsApp e rotina de atendimento.'}
             </p>
           </div>
         </div>
 
         <Link
-          to="/settings"
+          to="/billing"
           className={cn(
             'inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border px-3 text-xs font-semibold transition-colors',
             isExpired

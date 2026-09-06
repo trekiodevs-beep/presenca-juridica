@@ -3,29 +3,38 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { DataProvider } from './context/DataContext';
 import { ToastProvider } from './context/ToastContext';
 
-import { Layout } from './components/layout/Layout';
-import { Login } from './pages/Login';
-import { Hoje } from './pages/Hoje';
-import { Leads } from './pages/Leads';
-import { LeadDetail } from './pages/LeadDetail';
-import { NewLead } from './pages/NewLead';
-import { Dashboard } from './pages/Dashboard';
-import { Settings } from './pages/Settings';
-import { PublicForm } from './pages/PublicForm';
-import { OfficePublicPage } from './pages/OfficePublicPage';
-import { Channels } from './pages/Channels';
-import { Onboarding } from './pages/Onboarding';
-import { Agenda } from './pages/Agenda';
-import { Finance } from './pages/Finance';
-import { Portal } from './pages/Portal';
-import { PublicClientPortal } from './pages/PublicClientPortal';
-import { Tasks } from './pages/Tasks';
+const Layout = lazy(() => import('./components/layout/Layout').then(module => ({ default: module.Layout })));
+const Login = lazy(() => import('./pages/Login').then(module => ({ default: module.Login })));
+const Hoje = lazy(() => import('./pages/Hoje').then(module => ({ default: module.Hoje })));
+const Leads = lazy(() => import('./pages/Leads').then(module => ({ default: module.Leads })));
+const LeadDetail = lazy(() => import('./pages/LeadDetail').then(module => ({ default: module.LeadDetail })));
+const NewLead = lazy(() => import('./pages/NewLead').then(module => ({ default: module.NewLead })));
+const Dashboard = lazy(() => import('./pages/Dashboard').then(module => ({ default: module.Dashboard })));
+const Settings = lazy(() => import('./pages/Settings').then(module => ({ default: module.Settings })));
+const PublicForm = lazy(() => import('./pages/PublicForm').then(module => ({ default: module.PublicForm })));
+const OfficePublicPage = lazy(() => import('./pages/OfficePublicPage').then(module => ({ default: module.OfficePublicPage })));
+const Channels = lazy(() => import('./pages/Channels').then(module => ({ default: module.Channels })));
+const Onboarding = lazy(() => import('./pages/Onboarding').then(module => ({ default: module.Onboarding })));
+const Agenda = lazy(() => import('./pages/Agenda').then(module => ({ default: module.Agenda })));
+const Finance = lazy(() => import('./pages/Finance').then(module => ({ default: module.Finance })));
+const Portal = lazy(() => import('./pages/Portal').then(module => ({ default: module.Portal })));
+const PublicClientPortal = lazy(() => import('./pages/PublicClientPortal').then(module => ({ default: module.PublicClientPortal })));
+const Tasks = lazy(() => import('./pages/Tasks').then(module => ({ default: module.Tasks })));
+const Billing = lazy(() => import('./pages/Billing').then(module => ({ default: module.Billing })));
+const Team = lazy(() => import('./pages/Team').then(module => ({ default: module.Team })));
+const InvitationAccept = lazy(() => import('./pages/InvitationAccept').then(module => ({ default: module.InvitationAccept })));
+const Privacy = lazy(() => import('./pages/Privacy').then(module => ({ default: module.Privacy })));
+const Admin = lazy(() => import('./pages/Admin').then(module => ({ default: module.Admin })));
+const Legal = lazy(() => import('./pages/Legal').then(module => ({ default: module.Legal })));
+const Support = lazy(() => import('./pages/Support').then(module => ({ default: module.Support })));
+const Status = lazy(() => import('./pages/Status').then(module => ({ default: module.Status })));
+const Security = lazy(() => import('./pages/Security').then(module => ({ default: module.Security })));
 
 export default function App() {
   return (
@@ -33,11 +42,15 @@ export default function App() {
       <DataProvider>
         <ToastProvider>
           <Router>
+            <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Carregando…</div>}>
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/public/:officeSlug/contact" element={<PublicForm />} />
               <Route path="/o/:officeSlug" element={<OfficePublicPage />} />
               <Route path="/portal/cliente/:token" element={<PublicClientPortal />} />
+              <Route path="/convite/:token" element={<InvitationAccept />} />
+              <Route path="/legal/:document" element={<Legal />} />
+              <Route path="/status" element={<Status />} />
               
               <Route path="/" element={<Layout />}>
                 <Route index element={<Hoje />} />
@@ -52,8 +65,15 @@ export default function App() {
                 <Route path="canais" element={<Channels />} />
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="settings" element={<Settings />} />
+                <Route path="billing" element={<Billing />} />
+                <Route path="equipe" element={<Team />} />
+                <Route path="privacidade" element={<Privacy />} />
+                <Route path="admin" element={<Admin />} />
+                <Route path="suporte" element={<Support />} />
+                <Route path="seguranca" element={<Security />} />
               </Route>
             </Routes>
+            </Suspense>
           </Router>
         </ToastProvider>
       </DataProvider>

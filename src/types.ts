@@ -82,16 +82,43 @@ export type SubscriptionStatus =
   | 'TRIALING'
   | 'ACTIVE'
   | 'PAST_DUE'
+  | 'GRACE_PERIOD'
+  | 'SUSPENDED'
   | 'CANCELED'
   | 'EXPIRED';
+
+export type PlanCode = 'trial' | 'essential' | 'professional' | 'custom';
+
+export type UserRole = 'owner' | 'admin' | 'lawyer' | 'assistant' | 'finance' | 'read';
+
+export type Permission =
+  | 'office.manage'
+  | 'billing.manage'
+  | 'members.manage'
+  | 'contacts.read'
+  | 'contacts.write'
+  | 'tasks.write'
+  | 'calendar.write'
+  | 'finance.read'
+  | 'finance.write'
+  | 'documents.write'
+  | 'portal.write'
+  | 'export.read';
 
 export interface User {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'lawyer' | 'assistant';
+  role: UserRole;
   officeId: string;
   createdAt: string;
+  updatedAt?: string;
+  photoURL?: string | null;
+  globalRole?: 'platform_admin' | null;
+  acceptedTermsVersion?: string | null;
+  acceptedTermsAt?: string | null;
+  acceptedPrivacyVersion?: string | null;
+  acceptedPrivacyAt?: string | null;
 }
 
 export interface Office {
@@ -109,8 +136,107 @@ export interface Office {
   trialStartedAt?: string | null;
   trialEndsAt?: string | null;
   subscriptionUpdatedAt?: string | null;
+  planCode?: PlanCode;
+  trialEndsAtMs?: number | null;
+  graceEndsAt?: string | null;
+  graceEndsAtMs?: number | null;
+  ownerUserId?: string;
+  onboardingCompletedAt?: string | null;
+  limits?: PlanLimits;
+  billingCustomerId?: string | null;
+  billingSubscriptionId?: string | null;
+  billingProvider?: 'asaas' | null;
+  deletionScheduledAt?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PlanLimits {
+  maxUsers: number;
+  maxContacts: number;
+  maxStorageBytes: number;
+}
+
+export interface Plan {
+  code: PlanCode;
+  name: string;
+  audience: string;
+  priceCents: number | null;
+  interval: 'month' | null;
+  limits: PlanLimits;
+  features: string[];
+}
+
+export interface Membership {
+  id: string;
+  officeId: string;
+  userId: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  status: 'active' | 'invited' | 'blocked' | 'removed';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Invitation {
+  id: string;
+  officeId: string;
+  email: string;
+  role: UserRole;
+  tokenHash: string;
+  status: 'pending' | 'accepted' | 'expired' | 'revoked';
+  expiresAt: string;
+  createdBy: string;
+  acceptedBy?: string | null;
+  acceptedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Subscription {
+  id: string;
+  officeId: string;
+  planCode: PlanCode;
+  status: SubscriptionStatus;
+  provider: 'asaas';
+  providerCustomerId?: string | null;
+  providerSubscriptionId?: string | null;
+  nextDueDate?: string | null;
+  canceledAt?: string | null;
+  updatedAt: string;
+}
+
+export interface BillingEvent {
+  id: string;
+  provider: 'asaas';
+  eventType: string;
+  externalId: string;
+  officeId?: string | null;
+  status: 'received' | 'processed' | 'ignored' | 'failed';
+  receivedAt: string;
+  processedAt?: string | null;
+  error?: string | null;
+}
+
+export interface UsageCounter {
+  officeId: string;
+  users: number;
+  contacts: number;
+  storageBytes: number;
+  storageReservedBytes?: number;
+  refreshedAt: string;
+}
+
+export interface AuditLog {
+  id: string;
+  officeId?: string | null;
+  actorUserId?: string | null;
+  action: string;
+  targetType: string;
+  targetId?: string | null;
+  metadata?: Record<string, string | number | boolean | null>;
+  createdAt: string;
 }
 
 export interface PublicForm {
@@ -263,6 +389,7 @@ export interface ClientPortalAccess {
   appointments: PortalAppointmentSummary[];
   isActive: boolean;
   expiresAt?: string | null;
+  expiresAtMs?: number | null;
   createdAt: string;
   updatedAt: string;
 }

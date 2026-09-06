@@ -1,0 +1,16 @@
+{
+  "indexes": [
+    { "collectionGroup": "memberships", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "officeId", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "ASCENDING" }] },
+    { "collectionGroup": "auditLogs", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "officeId", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }] },
+    { "collectionGroup": "invitations", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "tokenHash", "order": "ASCENDING" }, { "fieldPath": "status", "order": "ASCENDING" }] },
+    { "collectionGroup": "invitations", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "officeId", "order": "ASCENDING" }, { "fieldPath": "status", "order": "ASCENDING" }] },
+    { "collectionGroup": "invitations", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "officeId", "order": "ASCENDING" }, { "fieldPath": "email", "order": "ASCENDING" }, { "fieldPath": "status", "order": "ASCENDING" }] },
+    { "collectionGroup": "invitations", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "expiresAt", "order": "ASCENDING" }] },
+    { "collectionGroup": "memberships", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "officeId", "order": "ASCENDING" }, { "fieldPath": "status", "order": "ASCENDING" }] },
+    { "collectionGroup": "pendingUploads", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "officeId", "order": "ASCENDING" }, { "fieldPath": "status", "order": "ASCENDING" }] },
+    { "collectionGroup": "pendingUploads", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "expiresAtMs", "order": "ASCENDING" }] },
+    { "collectionGroup": "publicForms", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "officeId", "order": "ASCENDING" }, { "fieldPath": "isActive", "order": "ASCENDING" }] },
+    { "collectionGroup": "leadEvents", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "officeId", "order": "ASCENDING" }, { "fieldPath": "type", "order": "ASCENDING" }] }
+  ],
+  "fieldOverrides": []
+}

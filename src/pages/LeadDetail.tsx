@@ -15,6 +15,7 @@ import { formatPhoneForDisplay, formatPhoneForWhatsapp, formatDateTime, humanize
 import { PageHeader } from '../components/layout/PageHeader';
 import { useToast } from '../context/ToastContext';
 import { Input } from '../components/ui/Input';
+import { getDocumentDownloadUrl } from '../lib/documents';
 
 const documentCategories: DocumentCategory[] = ['Identificação', 'Contrato', 'Procuração', 'Comprovante', 'Peça processual', 'Outro'];
 const calendarTypes: CalendarEventType[] = ['Consulta', 'Retorno', 'Prazo', 'Audiência', 'Reunião', 'Outro'];
@@ -73,6 +74,7 @@ export const LeadDetail = () => {
   const [documentCategory, setDocumentCategory] = useState<DocumentCategory>('Comprovante');
   const [documentVisibleInPortal, setDocumentVisibleInPortal] = useState(false);
   const [isUploadingDocument, setIsUploadingDocument] = useState(false);
+  const [downloadingDocumentId, setDownloadingDocumentId] = useState<string | null>(null);
   const [calendarTitle, setCalendarTitle] = useState('');
   const [calendarType, setCalendarType] = useState<CalendarEventType>('Consulta');
   const [calendarStartAt, setCalendarStartAt] = useState('');
@@ -176,6 +178,21 @@ export const LeadDetail = () => {
       showToast('Erro ao anexar documento.', 'error');
     } finally {
       setIsUploadingDocument(false);
+    }
+  };
+
+  const handleDownloadDocument = async (documentId: string, fallbackUrl: string) => {
+    setDownloadingDocumentId(documentId);
+    try {
+      const result = import.meta.env.VITE_USE_MOCK_DATA === 'true'
+        ? { downloadUrl: fallbackUrl }
+        : await getDocumentDownloadUrl(documentId);
+      window.open(result.downloadUrl, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      console.error(error);
+      showToast('Não foi possível autorizar o download deste documento.', 'error');
+    } finally {
+      setDownloadingDocumentId(null);
     }
   };
 
@@ -475,11 +492,11 @@ export const LeadDetail = () => {
               {leadDocuments.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {leadDocuments.map(document => (
-                    <a
+                    <button
                       key={document.id}
-                      href={document.downloadUrl}
-                      target="_blank"
-                      rel="noreferrer"
+                      type="button"
+                      onClick={() => handleDownloadDocument(document.id, document.downloadUrl)}
+                      disabled={downloadingDocumentId === document.id}
                       className="rounded-lg border border-slate-200 bg-white p-4 hover:bg-slate-50 transition-colors"
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -491,7 +508,7 @@ export const LeadDetail = () => {
                           <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Portal</span>
                         )}
                       </div>
-                    </a>
+                    </button>
                   ))}
                 </div>
               ) : (

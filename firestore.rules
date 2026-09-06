@@ -2,506 +2,110 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isAuthenticated() {
-      return request.auth != null;
+    function authenticated() { return request.auth != null; }
+    function userPath(uid) { return /databases/$(database)/documents/users/$(uid); }
+    function officePath(officeId) { return /databases/$(database)/documents/offices/$(officeId); }
+    function currentUserExists() { return authenticated() && exists(userPath(request.auth.uid)); }
+    function currentUser() { return get(userPath(request.auth.uid)).data; }
+    function officeUserId() { return currentUserExists() ? currentUser().officeId : ''; }
+    function role() { return currentUserExists() ? currentUser().role : ''; }
+    function activeMembership(officeId) { return !exists(/databases/$(database)/documents/memberships/$(officeId)_$(request.auth.uid)) || get(/databases/$(database)/documents/memberships/$(officeId)_$(request.auth.uid)).data.status == 'active'; }
+    function sameOffice(officeId) { return currentUserExists() && officeUserId() != '' && officeUserId() == officeId && activeMembership(officeId); }
+    function manager() { return role() in ['owner', 'admin']; }
+    function operator() { return role() in ['owner', 'admin', 'lawyer', 'assistant']; }
+    function financeOperator() { return role() in ['owner', 'admin', 'lawyer', 'finance']; }
+    function officeAllowsWrites(officeId) {
+      let office = get(officePath(officeId)).data;
+      return office.subscriptionStatus == 'ACTIVE'
+        || ((office.subscriptionStatus == 'PAST_DUE' || office.subscriptionStatus == 'GRACE_PERIOD')
+          && office.graceEndsAtMs is number
+          && request.time.toMillis() < office.graceEndsAtMs)
+        || (office.subscriptionStatus == 'TRIALING' && office.trialEndsAtMs is number && request.time.toMillis() < office.trialEndsAtMs);
     }
-
-    function getUserOfficeId() {
-      return isAuthenticated()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.officeId
-        : '';
-    }
-
-    function hasValidPublicFormBinding() {
+    function canOperate(officeId) { return sameOffice(officeId) && operator() && officeAllowsWrites(officeId); }
+    function canFinance(officeId) { return sameOffice(officeId) && financeOperator() && officeAllowsWrites(officeId); }
+    function validPublicFormBinding() {
       return request.resource.data.publicFormSlug is string
         && request.resource.data.publicFormSlug != ''
-        && exists(
-          /databases/$(database)/documents/publicForms/$(request.resource.data.publicFormSlug)
-        )
-        && get(
-          /databases/$(database)/documents/publicForms/$(request.resource.data.publicFormSlug)
-        ).data.isActive == true
-        && get(
-          /databases/$(database)/documents/publicForms/$(request.resource.data.publicFormSlug)
-        ).data.officeId == request.resource.data.officeId;
+        && exists(/databases/$(database)/documents/publicForms/$(request.resource.data.publicFormSlug))
+        && get(/databases/$(database)/documents/publicForms/$(request.resource.data.publicFormSlug)).data.isActive == true
+        && get(/databases/$(database)/documents/publicForms/$(request.resource.data.publicFormSlug)).data.officeId == request.resource.data.officeId;
     }
-
-    function isSameOffice(officeId) {
-      return isAuthenticated()
-        && getUserOfficeId() != ''
-        && getUserOfficeId() == officeId;
-    }
-
-    function isValidPortalAccess() {
-      return request.resource.data.keys().hasOnly([
-          'id',
-          'officeId',
-          'leadId',
-          'clientName',
-          'clientEmail',
-          'statusLabel',
-          'publicNotes',
-          'pendingItems',
-          'documents',
-          'appointments',
-          'isActive',
-          'expiresAt',
-          'createdAt',
-          'updatedAt'
-        ])
-        && request.resource.data.id is string
-        && request.resource.data.officeId is string
-        && request.resource.data.leadId is string
-        && request.resource.data.clientName is string
-        && request.resource.data.statusLabel is string
-        && request.resource.data.pendingItems is list
-        && request.resource.data.documents is list
-        && request.resource.data.appointments is list
+    function validDocumentLead(leadId, officeId) { return exists(/databases/$(database)/documents/leads/$(leadId)) && get(/databases/$(database)/documents/leads/$(leadId)).data.officeId == officeId; }
+    function validPortalData() {
+      return request.resource.data.keys().hasOnly(['id','officeId','leadId','clientName','clientEmail','statusLabel','publicNotes','pendingItems','documents','appointments','isActive','expiresAt','expiresAtMs','createdAt','updatedAt'])
+        && request.resource.data.id is string && request.resource.data.officeId is string && request.resource.data.leadId is string
+        && request.resource.data.clientName is string && request.resource.data.statusLabel is string
+        && request.resource.data.pendingItems is list && request.resource.data.documents is list && request.resource.data.appointments is list
         && request.resource.data.isActive is bool
-        && (
-          request.resource.data.expiresAt == null
-          || request.resource.data.expiresAt is string
-        )
-        && exists(/databases/$(database)/documents/leads/$(request.resource.data.leadId))
-        && get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.officeId == request.resource.data.officeId;
+        && (!('expiresAtMs' in request.resource.data) || request.resource.data.expiresAtMs == null || request.resource.data.expiresAtMs is number)
+        && validDocumentLead(request.resource.data.leadId, request.resource.data.officeId);
     }
 
     match /users/{userId} {
-      allow read: if isAuthenticated()
-        && request.auth.uid == userId;
-
-      allow create: if isAuthenticated()
-        && request.auth.uid == userId
-        && request.resource.data.id == userId
-        && request.resource.data.role == 'admin'
-        && request.resource.data.officeId == ''
-        && request.resource.data.keys().hasOnly([
-          'id',
-          'name',
-          'email',
-          'role',
-          'officeId',
-          'createdAt'
-        ]);
-
-      allow update: if isAuthenticated()
-        && request.auth.uid == userId
-        && request.resource.data.role == resource.data.role
-        && (
-          (
-            request.resource.data.officeId == resource.data.officeId
-            && request.resource.data
-              .diff(resource.data)
-              .affectedKeys()
-              .hasOnly([
-                'name',
-                'email',
-                'updatedAt'
-              ])
-          )
-          ||
-          (
-            resource.data.officeId == ''
-            && request.resource.data.officeId != ''
-            && request.resource.data
-              .diff(resource.data)
-              .affectedKeys()
-              .hasOnly([
-                'officeId',
-                'updatedAt'
-              ])
-            && getAfter(
-              /databases/$(database)/documents/offices/$(request.resource.data.officeId)
-            ).data.ownerUserId == request.auth.uid
-          )
-        );
+      allow get: if authenticated() && request.auth.uid == userId;
+      allow create: if authenticated() && request.auth.uid == userId && request.resource.data.id == userId && request.resource.data.role == 'admin' && request.resource.data.officeId == '' && request.resource.data.keys().hasOnly(['id','name','email','role','officeId','createdAt']);
+      allow update: if authenticated() && request.auth.uid == userId && request.resource.data.id == resource.data.id && (
+        (request.resource.data.role == resource.data.role && request.resource.data.officeId == resource.data.officeId && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','email','updatedAt']))
+        || (resource.data.officeId == '' && request.resource.data.officeId != '' && request.resource.data.role == 'owner' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['officeId','role','updatedAt']) && getAfter(officePath(request.resource.data.officeId)).data.ownerUserId == request.auth.uid)
+      );
+      allow list, delete: if false;
     }
 
     match /offices/{officeId} {
-      // O escritório só pode ser criado no mesmo batch que vincula o usuário.
-      allow create: if isAuthenticated()
-        && request.resource.data.ownerUserId == request.auth.uid
-        && request.resource.data.id == officeId
-        && request.resource.data.subscriptionStatus == 'TRIALING'
-        && request.resource.data.trialStartedAt is string
-        && request.resource.data.trialEndsAt is string
-        && request.resource.data.subscriptionUpdatedAt == request.resource.data.trialStartedAt
-        && request.resource.data.keys().hasOnly([
-          'id',
-          'name',
-          'lawyerName',
-          'oab',
-          'city',
-          'state',
-          'whatsapp',
-          'email',
-          'areas',
-          'slug',
-          'subscriptionStatus',
-          'trialStartedAt',
-          'trialEndsAt',
-          'subscriptionUpdatedAt',
-          'createdAt',
-          'updatedAt',
-          'ownerUserId'
-        ])
-        && exists(
-          /databases/$(database)/documents/users/$(request.auth.uid)
-        )
-        && get(
-          /databases/$(database)/documents/users/$(request.auth.uid)
-        ).data.officeId == ''
-        && getAfter(
-          /databases/$(database)/documents/users/$(request.auth.uid)
-        ).data.officeId == officeId
-        && getAfter(
-          /databases/$(database)/documents/users/$(request.auth.uid)
-        ).data.role == get(
-          /databases/$(database)/documents/users/$(request.auth.uid)
-        ).data.role;
-
-      allow read: if isSameOffice(officeId);
-
-      allow update: if isAuthenticated()
-        && isSameOffice(officeId)
-        && request.resource.data.id == resource.data.id
-        && request.resource.data.ownerUserId == resource.data.ownerUserId
-        && request.resource.data.createdAt == resource.data.createdAt
-        && (
-          request.resource.data
-            .diff(resource.data)
-            .affectedKeys()
-            .hasOnly([
-              'name',
-              'lawyerName',
-              'oab',
-              'city',
-              'state',
-              'whatsapp',
-              'email',
-              'areas',
-              'slug',
-              'updatedAt'
-            ])
-          ||
-          (
-            !('trialEndsAt' in resource.data)
-            && request.resource.data.subscriptionStatus == 'TRIALING'
-            && request.resource.data.trialStartedAt is string
-            && request.resource.data.trialEndsAt is string
-            && request.resource.data.subscriptionUpdatedAt == request.resource.data.trialStartedAt
-            && request.resource.data
-              .diff(resource.data)
-              .affectedKeys()
-              .hasOnly([
-                'subscriptionStatus',
-                'trialStartedAt',
-                'trialEndsAt',
-                'subscriptionUpdatedAt',
-                'updatedAt'
-              ])
-          )
-        );
-
-      // Delete permanece bloqueado por ausência de allow delete.
-    }
-
-    match /publicForms/{slug} {
-      allow get: if resource.data.isActive == true
-        || (
-          isAuthenticated()
-          && getUserOfficeId() == resource.data.officeId
-        );
-
-      allow create: if isAuthenticated()
-        && getUserOfficeId() != ''
-        && request.resource.data.officeId == getUserOfficeId()
-        && request.resource.data.slug == slug
-        && exists(
-          /databases/$(database)/documents/offices/$(request.resource.data.officeId)
-        )
-        && request.resource.data.keys().hasOnly([
-          'slug',
-          'officeId',
-          'officeName',
-          'lawyerName',
-          'whatsapp',
-          'email',
-          'city',
-          'state',
-          'areas',
-          'isActive',
-          'createdAt',
-          'updatedAt'
-        ]);
-
-      allow update: if isAuthenticated()
-        && getUserOfficeId() != ''
-        && resource.data.officeId == getUserOfficeId()
-        && request.resource.data.officeId == resource.data.officeId
-        && request.resource.data.slug == resource.data.slug
-        && request.resource.data
-          .diff(resource.data)
-          .affectedKeys()
-          .hasOnly([
-            'officeName',
-            'lawyerName',
-            'whatsapp',
-            'email',
-            'city',
-            'state',
-            'areas',
-            'isActive',
-            'updatedAt'
-          ]);
-
-      // List e delete permanecem bloqueados.
-    }
-
-    match /leads/{leadId} {
-      allow create: if (
-        isAuthenticated()
-        && isSameOffice(request.resource.data.officeId)
-        && request.resource.data.id == leadId
-      ) || (
-        request.resource.data.createdVia == 'public_form'
-        && request.resource.data.keys().hasOnly([
-          'id',
-          'officeId',
-          'name',
-          'phone',
-          'email',
-          'city',
-          'state',
-          'area',
-          'summary',
-          'consentLgpd',
-          'source',
-          'status',
-          'priority',
-          'createdVia',
-          'publicFormSlug',
-          'utmSource',
-          'utmMedium',
-          'utmCampaign',
-          'createdAt',
-          'updatedAt'
-        ])
-        && request.resource.data.id is string
-        && request.resource.data.id == leadId
-        && request.resource.data.officeId is string
-        && request.resource.data.officeId.size() > 0
-        && request.resource.data.officeId.size() <= 128
-        && hasValidPublicFormBinding()
-        && request.resource.data.name is string
-        && request.resource.data.name.size() >= 2
-        && request.resource.data.name.size() <= 120
-        && request.resource.data.phone is string
-        && request.resource.data.phone.matches('^[0-9]{10,15}$')
-        && request.resource.data.email is string
-        && request.resource.data.email.size() <= 254
-        && request.resource.data.city is string
-        && request.resource.data.city.size() >= 2
-        && request.resource.data.city.size() <= 120
-        && request.resource.data.state is string
-        && request.resource.data.state.matches('^[A-Z]{2}$')
-        && request.resource.data.area is string
-        && request.resource.data.area.size() >= 2
-        && request.resource.data.area.size() <= 120
-        && request.resource.data.summary is string
-        && request.resource.data.summary.size() >= 10
-        && request.resource.data.summary.size() <= 2000
-        && request.resource.data.source is string
-        && request.resource.data.source.size() >= 1
-        && request.resource.data.source.size() <= 120
-        && request.resource.data.publicFormSlug is string
-        && request.resource.data.publicFormSlug.size() >= 1
-        && request.resource.data.publicFormSlug.size() <= 160
-        && (
-          !('utmSource' in request.resource.data)
-          || (
-            request.resource.data.utmSource is string
-            && request.resource.data.utmSource.size() <= 200
-          )
-        )
-        && (
-          !('utmMedium' in request.resource.data)
-          || (
-            request.resource.data.utmMedium is string
-            && request.resource.data.utmMedium.size() <= 200
-          )
-        )
-        && (
-          !('utmCampaign' in request.resource.data)
-          || (
-            request.resource.data.utmCampaign is string
-            && request.resource.data.utmCampaign.size() <= 200
-          )
-        )
-        && request.resource.data.consentLgpd == true
-        && request.resource.data.status == 'Novo contato'
-        && request.resource.data.priority == 'Média'
-        && !('cpf' in request.resource.data)
-        && !('rg' in request.resource.data)
-        && !('numeroProcesso' in request.resource.data)
-        && !('documentos' in request.resource.data)
-        && !('files' in request.resource.data)
-        && !('attachments' in request.resource.data)
+      allow create: if authenticated() && request.resource.data.id == officeId && request.resource.data.ownerUserId == request.auth.uid && request.resource.data.planCode == 'trial' && request.resource.data.subscriptionStatus == 'TRIALING' && request.resource.data.trialStartedAt is string && request.resource.data.trialEndsAt is string && request.resource.data.trialEndsAtMs is number && request.resource.data.limits.maxUsers == 2 && request.resource.data.limits.maxContacts == 100 && exists(userPath(request.auth.uid)) && get(userPath(request.auth.uid)).data.officeId == '' && getAfter(userPath(request.auth.uid)).data.officeId == officeId && getAfter(userPath(request.auth.uid)).data.role == 'owner' && request.resource.data.keys().hasOnly(['id','name','lawyerName','oab','city','state','whatsapp','email','areas','slug','subscriptionStatus','trialStartedAt','trialEndsAt','trialEndsAtMs','subscriptionUpdatedAt','planCode','limits','createdAt','updatedAt','ownerUserId']);
+      allow get: if sameOffice(officeId);
+      allow update: if sameOffice(officeId) && manager() && request.resource.data.id == resource.data.id && request.resource.data.ownerUserId == resource.data.ownerUserId && request.resource.data.createdAt == resource.data.createdAt && (
+        (officeAllowsWrites(officeId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','lawyerName','oab','city','state','whatsapp','email','areas','slug','updatedAt']))
+        || (!('trialEndsAtMs' in resource.data) && resource.data.subscriptionStatus == 'TRIALING' && request.resource.data.trialEndsAtMs is number && request.resource.data.planCode == 'trial' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subscriptionStatus','trialStartedAt','trialEndsAt','trialEndsAtMs','subscriptionUpdatedAt','planCode','limits','updatedAt']))
       );
-
-      allow read: if isSameOffice(resource.data.officeId);
-
-      allow update: if isSameOffice(resource.data.officeId)
-        && request.resource.data.id == resource.data.id
-        && request.resource.data.officeId == resource.data.officeId
-        && request.resource.data.createdAt == resource.data.createdAt;
-
-      allow delete: if isSameOffice(resource.data.officeId);
+      allow list, delete: if false;
     }
 
-    match /leadEvents/{eventId} {
-      allow create: if (
-        isAuthenticated()
-        && isSameOffice(request.resource.data.officeId)
-      ) || (
-        request.resource.data.createdBy == 'public_form'
-        && request.resource.data.id == eventId
-        && request.resource.data.type == 'created'
-        && request.resource.data.leadId is string
-        && getAfter(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.createdVia == 'public_form'
-        && getAfter(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.officeId == request.resource.data.officeId
-      );
-
-      allow read: if isSameOffice(resource.data.officeId);
-
+    match /memberships/{membershipId} {
+      allow create: if authenticated() && request.resource.data.id == membershipId && request.resource.data.userId == request.auth.uid && request.resource.data.role == 'owner' && request.resource.data.status == 'active' && getAfter(userPath(request.auth.uid)).data.officeId == request.resource.data.officeId;
+      allow get: if authenticated() && (request.auth.uid == resource.data.userId || (sameOffice(resource.data.officeId) && manager()));
+      allow list: if authenticated() && sameOffice(resource.data.officeId);
       allow update, delete: if false;
     }
 
-    match /tasks/{taskId} {
-      allow create: if isSameOffice(request.resource.data.officeId)
-        && request.resource.data.id == taskId
-        && request.resource.data.title is string
-        && request.resource.data.title.size() >= 2
-        && request.resource.data.title.size() <= 180
-        && request.resource.data.dueAt is string
-        && request.resource.data.done is bool;
-
-      allow read: if isSameOffice(resource.data.officeId);
-
-      allow update: if isSameOffice(resource.data.officeId)
-        && request.resource.data.id == resource.data.id
-        && request.resource.data.officeId == resource.data.officeId
-        && request.resource.data.createdAt == resource.data.createdAt;
-
-      allow delete: if isSameOffice(resource.data.officeId);
+    match /publicForms/{slug} {
+      allow get: if resource.data.isActive == true || (sameOffice(resource.data.officeId) && manager());
+      allow create: if sameOffice(request.resource.data.officeId) && manager() && request.resource.data.slug == slug;
+      allow update: if sameOffice(resource.data.officeId) && manager() && officeAllowsWrites(resource.data.officeId) && request.resource.data.officeId == resource.data.officeId && request.resource.data.slug == resource.data.slug && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['officeName','lawyerName','whatsapp','email','city','state','areas','isActive','updatedAt']);
+      allow list, delete: if false;
     }
 
-    match /leadDocuments/{documentId} {
-      allow create: if isSameOffice(request.resource.data.officeId)
-        && request.resource.data.id == documentId
-        && request.resource.data.leadId is string
-        && exists(/databases/$(database)/documents/leads/$(request.resource.data.leadId))
-        && get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.officeId == request.resource.data.officeId
-        && request.resource.data.keys().hasOnly([
-          'id',
-          'officeId',
-          'leadId',
-          'name',
-          'fileName',
-          'contentType',
-          'size',
-          'storagePath',
-          'downloadUrl',
-          'category',
-          'visibleInPortal',
-          'uploadedBy',
-          'createdAt',
-          'updatedAt'
-        ])
-        && request.resource.data.name is string
-        && request.resource.data.name.size() <= 180
-        && request.resource.data.size is number
-        && request.resource.data.size > 0
-        && request.resource.data.size <= 15728640
-        && request.resource.data.visibleInPortal is bool;
-
-      allow read: if isSameOffice(resource.data.officeId);
-
-      allow update: if isSameOffice(resource.data.officeId)
-        && request.resource.data.id == resource.data.id
-        && request.resource.data.officeId == resource.data.officeId
-        && request.resource.data.leadId == resource.data.leadId
-        && request.resource.data.storagePath == resource.data.storagePath
-        && request.resource.data.uploadedBy == resource.data.uploadedBy
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'name',
-          'category',
-          'visibleInPortal',
-          'updatedAt'
-        ]);
-
-      allow delete: if isSameOffice(resource.data.officeId);
+    match /leads/{leadId} {
+      allow create: if false;
+      allow get, list: if sameOffice(resource.data.officeId);
+      allow update: if canOperate(resource.data.officeId) && request.resource.data.id == resource.data.id && request.resource.data.officeId == resource.data.officeId && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if canOperate(resource.data.officeId);
     }
+    match /leadEvents/{eventId} { allow create: if canOperate(request.resource.data.officeId) && request.resource.data.id == eventId; allow get, list: if sameOffice(resource.data.officeId); allow update, delete: if false; }
+    match /tasks/{taskId} { allow create: if canOperate(request.resource.data.officeId) && request.resource.data.id == taskId && request.resource.data.title is string && request.resource.data.dueAt is string && request.resource.data.done is bool; allow get, list: if sameOffice(resource.data.officeId); allow update: if canOperate(resource.data.officeId) && request.resource.data.id == resource.data.id && request.resource.data.officeId == resource.data.officeId && request.resource.data.createdAt == resource.data.createdAt; allow delete: if canOperate(resource.data.officeId); }
+    match /leadDocuments/{documentId} { allow create: if false; allow get, list: if sameOffice(resource.data.officeId); allow update: if canOperate(resource.data.officeId) && request.resource.data.id == resource.data.id && request.resource.data.officeId == resource.data.officeId && request.resource.data.leadId == resource.data.leadId && request.resource.data.storagePath == resource.data.storagePath && request.resource.data.createdAt == resource.data.createdAt; allow delete: if canOperate(resource.data.officeId); }
+    match /calendarEvents/{eventId} { allow create: if canOperate(request.resource.data.officeId) && request.resource.data.id == eventId && request.resource.data.title is string && request.resource.data.startAt is string; allow get, list: if sameOffice(resource.data.officeId); allow update: if canOperate(resource.data.officeId) && request.resource.data.id == resource.data.id && request.resource.data.officeId == resource.data.officeId && request.resource.data.createdAt == resource.data.createdAt; allow delete: if canOperate(resource.data.officeId); }
+    match /financialRecords/{recordId} { allow create: if canFinance(request.resource.data.officeId) && request.resource.data.id == recordId && request.resource.data.description is string && request.resource.data.amount is number && request.resource.data.amount > 0; allow get, list: if sameOffice(resource.data.officeId); allow update: if canFinance(resource.data.officeId) && request.resource.data.id == resource.data.id && request.resource.data.officeId == resource.data.officeId && request.resource.data.createdAt == resource.data.createdAt; allow delete: if canFinance(resource.data.officeId); }
+    match /clientPortalAccess/{token} { allow get: if (resource.data.isActive == true && resource.data.id == token && (!('expiresAtMs' in resource.data) || resource.data.expiresAtMs == null || request.time.toMillis() < resource.data.expiresAtMs)) || sameOffice(resource.data.officeId); allow list: if sameOffice(resource.data.officeId); allow create: if canOperate(request.resource.data.officeId) && request.resource.data.id == token && validPortalData(); allow update: if canOperate(resource.data.officeId) && request.resource.data.id == resource.data.id && request.resource.data.officeId == resource.data.officeId && validPortalData(); allow delete: if canOperate(resource.data.officeId); }
 
-    match /calendarEvents/{eventId} {
-      allow create: if isSameOffice(request.resource.data.officeId)
-        && request.resource.data.id == eventId
-        && request.resource.data.title is string
-        && request.resource.data.title.size() >= 2
-        && request.resource.data.title.size() <= 160
-        && request.resource.data.startAt is string;
-
-      allow read: if isSameOffice(resource.data.officeId);
-
-      allow update: if isSameOffice(resource.data.officeId)
-        && request.resource.data.id == resource.data.id
-        && request.resource.data.officeId == resource.data.officeId
-        && request.resource.data.createdAt == resource.data.createdAt;
-
-      allow delete: if isSameOffice(resource.data.officeId);
+    match /invitations/{invitationId} { allow read, write: if false; }
+    match /auditLogs/{logId} { allow get, list: if authenticated() && sameOffice(resource.data.officeId) && manager(); allow create, update, delete: if false; }
+    match /authEvents/{eventId} { allow read, write: if false; }
+    match /usageCounters/{officeId} {
+      allow get: if sameOffice(officeId);
+      allow create: if authenticated() && request.resource.data.officeId == officeId && request.resource.data.users == 1 && request.resource.data.contacts == 0 && request.resource.data.storageBytes == 0 && request.resource.data.storageReservedBytes == 0 && getAfter(officePath(officeId)).data.ownerUserId == request.auth.uid;
+      allow list, update, delete: if false;
     }
-
-    match /financialRecords/{recordId} {
-      allow create: if isSameOffice(request.resource.data.officeId)
-        && request.resource.data.id == recordId
-        && request.resource.data.description is string
-        && request.resource.data.description.size() >= 2
-        && request.resource.data.description.size() <= 180
-        && request.resource.data.amount is number
-        && request.resource.data.amount > 0;
-
-      allow read: if isSameOffice(resource.data.officeId);
-
-      allow update: if isSameOffice(resource.data.officeId)
-        && request.resource.data.id == resource.data.id
-        && request.resource.data.officeId == resource.data.officeId
-        && request.resource.data.createdAt == resource.data.createdAt;
-
-      allow delete: if isSameOffice(resource.data.officeId);
-    }
-
-    match /clientPortalAccess/{token} {
-      allow get: if (
-          resource.data.isActive == true
-          && resource.data.id == token
-        ) || isSameOffice(resource.data.officeId);
-
-      allow create: if isSameOffice(request.resource.data.officeId)
-        && request.resource.data.id == token
-        && isValidPortalAccess();
-
-      allow list: if isSameOffice(resource.data.officeId);
-
-      allow update: if isSameOffice(resource.data.officeId)
-        && request.resource.data.id == resource.data.id
-        && request.resource.data.officeId == resource.data.officeId
-        && request.resource.data.leadId == resource.data.leadId
-        && request.resource.data.createdAt == resource.data.createdAt
-        && isValidPortalAccess();
-
-      allow delete: if isSameOffice(resource.data.officeId);
-    }
+    match /billingEvents/{eventId} { allow read, write: if false; }
+    match /integrationErrors/{errorId} { allow read, write: if false; }
+    match /subscriptions/{subscriptionId} { allow get: if sameOffice(resource.data.officeId); allow list, write: if false; }
+    match /pendingUploads/{uploadId} { allow read, write: if false; }
+    match /notifications/{notificationId} { allow read, write: if false; }
+    match /privacyRequests/{requestId} { allow read, write: if false; }
+    match /supportTickets/{ticketId} { allow read, write: if false; }
+    match /supportAccessRequests/{requestId} { allow read, write: if false; }
+    match /plans/{planId} { allow get: if authenticated(); allow list, write: if false; }
+    match /{document=**} { allow read, write: if false; }
   }
 }

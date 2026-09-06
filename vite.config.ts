@@ -11,6 +11,19 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+            'firebase-auth': ['firebase/app', 'firebase/auth', 'firebase/app-check'],
+            'firebase-data': ['firebase/firestore', 'firebase/functions'],
+            'motion-vendor': ['motion/react'],
+            'charts-vendor': ['recharts'],
+          },
+        },
+      },
+    },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.

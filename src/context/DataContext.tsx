@@ -22,6 +22,9 @@ import {
   updateFinancialRecord as dbUpdateFinancialRecord,
   upsertClientPortalAccess as dbUpsertClientPortalAccess,
 } from '../services/db';
+import { canWriteOffice } from '../lib/access';
+import { hasPermission } from '../lib/plans';
+import type { Permission } from '../types';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK_DATA === 'true';
 
@@ -59,6 +62,16 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const [financialRecords, setFinancialRecords] = useState<FinancialRecord[]>([]);
   const [portalAccesses, setPortalAccesses] = useState<ClientPortalAccess[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const requirePermission = (permission: Permission) => {
+    if (!office?.id) throw new Error('Nenhum escritório selecionado.');
+    if (!canWriteOffice(office)) {
+      throw new Error('O período de acesso permite apenas leitura. Consulte Plano e cobrança para reativar o escritório.');
+    }
+    if (!hasPermission(user?.role, permission)) {
+      throw new Error('Seu perfil não possui permissão para esta operação.');
+    }
+  };
 
   // Load data based on auth state
   useEffect(() => {
@@ -129,6 +142,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   const addLead = async (leadData: Omit<Lead, 'id' | 'createdAt' | 'updatedAt' | 'officeId'>) => {
     if (!office?.id) return;
+    requirePermission('contacts.write');
     
     if (USE_MOCK) {
       const leadId = `l${Date.now()}`;
@@ -158,6 +172,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const updateLead = async (id: string, updates: Partial<Lead>) => {
+    requirePermission('contacts.write');
     if (USE_MOCK) {
       setLeads(leads.map(lead => 
         lead.id === id 
@@ -172,6 +187,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   const addEvent = async (eventData: Omit<LeadEvent, 'id' | 'createdAt' | 'officeId'>) => {
     if (!office?.id) return;
+    requirePermission('contacts.write');
     
     if (USE_MOCK) {
       const newEvent: LeadEvent = {
@@ -192,6 +208,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   const addTask = async (taskData: Omit<Task, 'id' | 'createdAt' | 'officeId'>) => {
     if (!office?.id) return;
+    requirePermission('tasks.write');
 
     if (USE_MOCK) {
       const now = new Date().toISOString();
@@ -230,6 +247,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const updateTask = async (id: string, updates: Partial<Task>) => {
+    requirePermission('tasks.write');
     if (USE_MOCK) {
       setTasks(tasks.map(task => task.id === id ? { ...task, ...updates } : task));
       return;
@@ -240,6 +258,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   const uploadLeadDocument = async (leadId: string, file: File, category: DocumentCategory, visibleInPortal: boolean) => {
     if (!office?.id) return;
+    requirePermission('documents.write');
 
     if (USE_MOCK) {
       const now = new Date().toISOString();
@@ -289,6 +308,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   const addCalendarEvent = async (eventData: Omit<CalendarEvent, 'id' | 'createdAt' | 'updatedAt' | 'officeId'>) => {
     if (!office?.id) return;
+    requirePermission('calendar.write');
 
     if (USE_MOCK) {
       const now = new Date().toISOString();
@@ -329,6 +349,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const updateCalendarEvent = async (id: string, updates: Partial<CalendarEvent>) => {
+    requirePermission('calendar.write');
     if (USE_MOCK) {
       setCalendarEvents(calendarEvents.map(event => event.id === id ? { ...event, ...updates, updatedAt: new Date().toISOString() } : event));
       return;
@@ -338,6 +359,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   const addFinancialRecord = async (recordData: Omit<FinancialRecord, 'id' | 'createdAt' | 'updatedAt' | 'officeId'>) => {
     if (!office?.id) return;
+    requirePermission('finance.write');
 
     if (USE_MOCK) {
       const now = new Date().toISOString();
@@ -377,6 +399,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const updateFinancialRecord = async (id: string, updates: Partial<FinancialRecord>) => {
+    requirePermission('finance.write');
     if (USE_MOCK) {
       setFinancialRecords(financialRecords.map(record => record.id === id ? { ...record, ...updates, updatedAt: new Date().toISOString() } : record));
       return;
@@ -386,6 +409,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   const upsertPortalAccess = async (accessData: Omit<ClientPortalAccess, 'id' | 'createdAt' | 'updatedAt' | 'officeId'> & { id?: string }) => {
     if (!office?.id) return;
+    requirePermission('portal.write');
 
     if (USE_MOCK) {
       const now = new Date().toISOString();

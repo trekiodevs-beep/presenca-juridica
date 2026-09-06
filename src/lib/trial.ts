@@ -32,8 +32,10 @@ export const createTrialWindow = (now = new Date()) => {
 
   return {
     subscriptionStatus: 'TRIALING' as const,
+    planCode: 'trial' as const,
     trialStartedAt,
     trialEndsAt,
+    trialEndsAtMs: now.getTime() + TRIAL_DAYS * DAY_MS,
     subscriptionUpdatedAt: trialStartedAt,
   };
 };
@@ -43,6 +45,14 @@ export const getTrialState = (office?: Office | null, now = new Date()): TrialSt
 
   if (office.subscriptionStatus === 'ACTIVE') {
     return { kind: 'active', label: 'Plano ativo' };
+  }
+
+  if (office.subscriptionStatus === 'PAST_DUE' || office.subscriptionStatus === 'GRACE_PERIOD') {
+    return { kind: 'active', label: 'Pagamento pendente — acesso preservado durante a tolerância' };
+  }
+
+  if (office.subscriptionStatus === 'SUSPENDED' || office.subscriptionStatus === 'CANCELED') {
+    return { kind: 'expired', daysOverdue: 0, trialEndsAt: office.trialEndsAt || new Date().toISOString(), label: 'Acesso somente leitura' };
   }
 
   if (!office.trialEndsAt) {

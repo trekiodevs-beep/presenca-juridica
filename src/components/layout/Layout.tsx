@@ -4,6 +4,8 @@ import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { TrialBanner } from './TrialBanner';
 import { useAuth } from '../../context/AuthContext';
+import { LegalAcceptance } from '../LegalAcceptance';
+import { LEGAL_VERSION } from '../../lib/legal';
 
 export const Layout = () => {
   const { user, office, loading } = useAuth();
@@ -99,6 +101,8 @@ export const Layout = () => {
   if (!user) {
     return <Navigate to="/login" />;
   }
+
+  if (user.acceptedTermsVersion !== LEGAL_VERSION || user.acceptedPrivacyVersion !== LEGAL_VERSION) return <LegalAcceptance />;
 
   // If user is authenticated but doesn't have an officeId, force them to the settings page to create one
   if (!office && location.pathname !== '/settings') {

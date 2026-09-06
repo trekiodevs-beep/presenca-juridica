@@ -5,6 +5,7 @@ import { getClientPortalAccessByToken } from '../services/db';
 import { ClientPortalAccess } from '../types';
 import { Button } from '../components/ui/Button';
 import { mockPortalAccesses } from '../mockData';
+import { getDocumentDownloadUrl } from '../lib/documents';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK_DATA === 'true';
 
@@ -27,6 +28,7 @@ export const PublicClientPortal = () => {
   const { token } = useParams();
   const [access, setAccess] = useState<ClientPortalAccess | null>(null);
   const [loading, setLoading] = useState(true);
+  const [downloadingDocumentId, setDownloadingDocumentId] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -57,6 +59,20 @@ export const PublicClientPortal = () => {
       mounted = false;
     };
   }, [token]);
+
+  const handleDownload = async (documentId: string, fallbackUrl: string) => {
+    if (!token) return;
+    setDownloadingDocumentId(documentId);
+    try {
+      const result = USE_MOCK ? { downloadUrl: fallbackUrl } : await getDocumentDownloadUrl(documentId, token);
+      window.open(result.downloadUrl, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      console.error(error);
+      window.alert('Não foi possível autorizar este documento.');
+    } finally {
+      setDownloadingDocumentId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -156,10 +172,8 @@ export const PublicClientPortal = () => {
                       <p className="text-xs text-slate-500">{document.category} · {formatBytes(document.size)}</p>
                     </div>
                   </div>
-                  <Button asChild variant="outline" size="sm" className="shrink-0">
-                    <a href={document.downloadUrl} target="_blank" rel="noreferrer" aria-label={`Baixar ${document.name}`}>
-                      <Download className="w-4 h-4" />
-                    </a>
+                  <Button variant="outline" size="sm" className="shrink-0" disabled={downloadingDocumentId === document.id} onClick={() => handleDownload(document.id, document.downloadUrl)} aria-label={`Baixar ${document.name}`}>
+                    <Download className="w-4 h-4" />
                   </Button>
                 </div>
               ))}

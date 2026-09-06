@@ -6,6 +6,8 @@ export const mockUser: User = {
   email: 'joao@silvaadvogados.com.br',
   role: 'admin',
   officeId: 'o1',
+  acceptedTermsVersion: '2026-09-06-v1',
+  acceptedPrivacyVersion: '2026-09-06-v1',
   createdAt: new Date().toISOString(),
 };
 

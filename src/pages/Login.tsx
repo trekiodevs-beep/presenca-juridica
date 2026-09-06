@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { CheckCircle2, Shield } from 'lucide-react';
 
 export const Login = () => {
-  const { user, loading: authLoading, login } = useAuth();
+  const { user, loading: authLoading, login, mfaChallengePending, completeMfaLogin } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [mfaCode, setMfaCode] = useState('');
 
   if (authLoading) {
     return (
@@ -29,13 +30,19 @@ export const Login = () => {
     setLoading(true);
     setError('');
     try {
-      await login();
-      navigate('/');
+      if (await login()) navigate('/');
     } catch (err) {
       console.error(err);
       setError('Erro ao fazer login. Tente novamente.');
       setLoading(false);
     }
+  };
+
+  const handleMfa = async (event: React.FormEvent) => {
+    event.preventDefault(); setLoading(true); setError('');
+    try { await completeMfaLogin(mfaCode); navigate('/'); }
+    catch (err) { console.error(err); setError('Código inválido ou expirado.'); }
+    finally { setLoading(false); }
   };
 
   return (
@@ -124,7 +131,7 @@ export const Login = () => {
               )}
               
               <div>
-                <Button 
+                {!mfaChallengePending ? <Button
                   onClick={handleLogin} 
                   disabled={loading} 
                   className="w-full flex items-center justify-center gap-3 h-14 text-base font-medium shadow-sm transition-all hover:shadow-md"
@@ -140,7 +147,8 @@ export const Login = () => {
                     </svg>
                   )}
                   {loading ? 'Conectando...' : 'Entrar com Google'}
-                </Button>
+                </Button> : <form className="space-y-3" onSubmit={handleMfa}><label className="block text-left text-sm font-medium text-slate-700">Código de verificação<input autoFocus inputMode="numeric" autoComplete="one-time-code" required minLength={6} maxLength={6} className="mt-1 h-12 w-full rounded-md border border-slate-300 px-3 text-center text-lg tracking-[0.4em]" value={mfaCode} onChange={event => setMfaCode(event.target.value.replace(/\D/g, '').slice(0, 6))} /></label><Button className="w-full" disabled={loading || mfaCode.length !== 6}>{loading ? 'Verificando...' : 'Confirmar segundo fator'}</Button></form>}
+                <div id="mfa-signin-recaptcha" />
               </div>
               
               <div className="pt-6 mt-6 border-t border-slate-100 text-center">
@@ -149,6 +157,7 @@ export const Login = () => {
                   Acesso seguro para advogados autorizados.
                 </p>
                 <p className="text-xs text-slate-400 mt-2 lg:hidden font-medium">Tecnologia TrekIO &bull; Método ATOM</p>
+                <div className="mt-4 flex justify-center gap-3 text-xs"><Link className="text-brand-700" to="/legal/termos">Termos</Link><Link className="text-brand-700" to="/legal/privacidade">Privacidade</Link><Link className="text-brand-700" to="/legal/cookies">Cookies</Link></div>
               </div>
             </div>
           </div>

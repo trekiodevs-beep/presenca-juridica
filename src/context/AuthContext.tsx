@@ -2,8 +2,10 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 import { User, Office } from '../types';
 import { mockUser, mockOffice } from '../mockData';
 import { auth, googleProvider } from '../lib/firebase';
-import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
+import { signInWithPopup, signOut, onAuthStateChanged, getMultiFactorResolver, PhoneAuthProvider, PhoneMultiFactorGenerator, RecaptchaVerifier, type MultiFactorResolver } from 'firebase/auth';
 import { ensureOfficeTrial, getOrCreateUser, getOfficeById } from '../services/db';
+import { acceptLegalTerms, LEGAL_VERSION } from '../lib/legal';
+import { recordLoginEvent } from '../lib/audit';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK_DATA === 'true';
 
@@ -11,7 +13,10 @@ interface AuthContextType {
   user: User | null;
   office: Office | null;
   loading: boolean;
-  login: () => Promise<void>;
+  login: () => Promise<boolean>;
+  mfaChallengePending: boolean;
+  completeMfaLogin: (code: string) => Promise<void>;
+  acceptCurrentLegalTerms: () => Promise<void>;
   logout: () => Promise<void>;
   updateUserOfficeId: (officeId: string) => Promise<void>;
   setOffice: (office: Office) => void;
@@ -23,6 +28,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [office, setOffice] = useState<Office | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mfaResolver, setMfaResolver] = useState<MultiFactorResolver | null>(null);
+  const [mfaVerificationId, setMfaVerificationId] = useState('');
 
   useEffect(() => {
     if (USE_MOCK) {
@@ -42,6 +49,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           });
           
           setUser(userData);
+          recordLoginEvent().catch(error => console.error('Login audit failed:', error));
 
           if (userData?.officeId) {
             const officeData = await getOfficeById(userData.officeId);
@@ -67,15 +75,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (USE_MOCK) {
       setUser(mockUser);
       setOffice(mockOffice);
-      return;
+      return true;
     }
     
     try {
       await signInWithPopup(auth, googleProvider);
+      return true;
     } catch (error) {
+      if ((error as { code?: string }).code === 'auth/multi-factor-auth-required') {
+        const resolver = getMultiFactorResolver(auth, error as Parameters<typeof getMultiFactorResolver>[1]);
+        const hint = resolver.hints[0];
+        if (!hint) throw new Error('Nenhum segundo fator disponível.');
+        const verifier = new RecaptchaVerifier(auth, 'mfa-signin-recaptcha', { size: 'invisible' });
+        try {
+          const verificationId = await new PhoneAuthProvider(auth).verifyPhoneNumber({ multiFactorHint: hint, session: resolver.session }, verifier);
+          setMfaResolver(resolver);
+          setMfaVerificationId(verificationId);
+          return false;
+        } finally { verifier.clear(); }
+      }
       console.error("Login failed:", error);
       throw error;
     }
+  };
+
+  const completeMfaLogin = async (code: string) => {
+    if (!mfaResolver || !mfaVerificationId) throw new Error('Desafio MFA não iniciado.');
+    const credential = PhoneAuthProvider.credential(mfaVerificationId, code.trim());
+    await mfaResolver.resolveSignIn(PhoneMultiFactorGenerator.assertion(credential));
+    setMfaResolver(null); setMfaVerificationId('');
+  };
+
+  const acceptCurrentLegalTerms = async () => {
+    const result = await acceptLegalTerms();
+    setUser(current => current ? { ...current, acceptedTermsVersion: LEGAL_VERSION, acceptedTermsAt: result.acceptedAt, acceptedPrivacyVersion: LEGAL_VERSION, acceptedPrivacyAt: result.acceptedAt } : current);
   };
 
   const logout = async () => {
@@ -96,7 +129,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, office, loading, login, logout, updateUserOfficeId, setOffice }}>
+    <AuthContext.Provider value={{ user, office, loading, login, logout, updateUserOfficeId, setOffice, mfaChallengePending: Boolean(mfaResolver), completeMfaLogin, acceptCurrentLegalTerms }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, PlusCircle, Settings, LogOut, Briefcase, Route as RouteIcon, Compass, CalendarDays, CircleDollarSign, KeyRound, ListChecks } from 'lucide-react';
+import { LayoutDashboard, Users, PlusCircle, Settings, LogOut, Briefcase, Route as RouteIcon, Compass, CalendarDays, CircleDollarSign, KeyRound, ListChecks, CreditCard, UsersRound, ShieldCheck, LifeBuoy } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { cn } from '../../lib/utils';
 
@@ -34,11 +34,16 @@ const navGroups = [
       { name: 'Painel de gestão', path: '/dashboard', icon: Briefcase },
     ],
   },
-  {
-    label: 'Administração',
-    items: [
-      { name: 'Configurações', path: '/settings', icon: Settings },
-    ],
+    {
+      label: 'Administração',
+      items: [
+        { name: 'Configurações', path: '/settings', icon: Settings },
+        { name: 'Equipe', path: '/equipe', icon: UsersRound },
+        { name: 'Plano e cobrança', path: '/billing', icon: CreditCard },
+        { name: 'Privacidade e dados', path: '/privacidade', icon: ShieldCheck },
+        { name: 'Segurança da conta', path: '/seguranca', icon: KeyRound },
+        { name: 'Ajuda e suporte', path: '/suporte', icon: LifeBuoy },
+      ],
   },
 ];
 
@@ -52,7 +57,7 @@ export const Sidebar = ({
   onCloseMobile?: () => void;
 }) => {
   const { pathname } = useLocation();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
 
   const isActivePath = (path: string) => {
     if (path === '/') return pathname === '/';
@@ -143,6 +148,23 @@ export const Sidebar = ({
               </div>
             </div>
           ))}
+          {user?.globalRole === 'platform_admin' && (
+            <div className="border-t border-brand-800/80 pt-4">
+              <Link
+                to="/admin"
+                onClick={onCloseMobile}
+                className={cn(
+                  "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+                  isActivePath('/admin') ? "bg-blue-900/70 text-white" : "text-slate-300 hover:bg-brand-800/50 hover:text-white",
+                  collapsed && !mobileOpen && "justify-center"
+                )}
+                title={collapsed ? 'Administração global' : undefined}
+              >
+                <Settings className="h-5 w-5 shrink-0" />
+                {(!collapsed || mobileOpen) && <span>Administração global</span>}
+              </Link>
+            </div>
+          )}
         </div>
       </nav>
 

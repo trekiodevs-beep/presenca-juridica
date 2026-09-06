@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useToast } from '../context/ToastContext';
@@ -8,12 +8,17 @@ import { Link, useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { PageHeader } from '../components/layout/PageHeader';
 import { LeadSource, LeadStatus, Priority, LegalArea } from '../types';
+import { completeOnboarding } from '../lib/onboarding';
+import { getUsageCounter } from '../services/db';
+import type { UsageCounter } from '../types';
 
 export const Onboarding = () => {
-  const { office, user } = useAuth();
-  const { leads, events, addLead } = useData();
+  const { office, user, setOffice } = useAuth();
+  const { leads, events, tasks, calendarEvents, portalAccesses, addLead } = useData();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const [usage, setUsage] = useState<UsageCounter | null>(null);
+  useEffect(() => { if (office?.id) getUsageCounter(office.id).then(setUsage).catch(console.error); }, [office?.id]);
 
   // 1. Profile Complete
   const isProfileComplete = Boolean(
@@ -38,11 +43,19 @@ export const Onboarding = () => {
 
   // 5. WhatsApp Validated
   const isWhatsappValidated = events.some(e => e.type === 'whatsapp_opened') || leads.some(l => l.lastWhatsappClickAt != null);
+  const isTeamConfigured = Number(usage?.users || 0) > 1;
+  const hasTask = tasks.length > 0;
+  const hasCalendarEvent = calendarEvents.length > 0;
+  const hasPortal = portalAccesses.length > 0;
 
   const steps = [
     { completed: isProfileComplete },
     { completed: isPublicLinkReady },
+    { completed: isTeamConfigured },
     { completed: isTestContactCreated },
+    { completed: hasTask },
+    { completed: hasCalendarEvent },
+    { completed: hasPortal },
     { completed: isTodayValidated },
     { completed: isWhatsappValidated },
   ];
@@ -50,6 +63,9 @@ export const Onboarding = () => {
   const completedSteps = steps.filter(s => s.completed).length;
   const progressPercent = (completedSteps / steps.length) * 100;
   const isAllDone = completedSteps === steps.length;
+  useEffect(() => {
+    if (isAllDone && !office?.onboardingCompletedAt) completeOnboarding().then(result => office && setOffice({ ...office, onboardingCompletedAt: result.completedAt })).catch(console.error);
+  }, [isAllDone, office?.id, office?.onboardingCompletedAt]);
 
   const handleCopyLink = () => {
     if (!office?.slug) return;
@@ -190,6 +206,9 @@ export const Onboarding = () => {
         </StepCard>
 
         {/* Step 3 */}
+        <StepCard title="Convide uma pessoa da equipe" description="Valide o acesso multiusuário com uma conta individual e o menor perfil necessário." isCompleted={isTeamConfigured}><Button asChild variant="outline"><Link to="/equipe">Gerenciar equipe</Link></Button></StepCard>
+
+        {/* Step 4 */}
         <StepCard
           title="Envie um contato de teste"
           description="Valide a jornada completa simulando uma pessoa entrando pelo seu link público."
@@ -215,6 +234,12 @@ export const Onboarding = () => {
             </Button>
           )}
         </StepCard>
+
+        <StepCard title="Crie a primeira tarefa" description="Registre a próxima providência para que o atendimento não dependa de memória." isCompleted={hasTask}><Button asChild variant="outline"><Link to="/tarefas">Ir para tarefas</Link></Button></StepCard>
+
+        <StepCard title="Registre um compromisso" description="Inclua uma consulta, retorno ou prazo na agenda do escritório." isCompleted={hasCalendarEvent}><Button asChild variant="outline"><Link to="/agenda">Ir para agenda</Link></Button></StepCard>
+
+        <StepCard title="Ative um portal de cliente" description="Publique apenas informações selecionadas e valide o acesso temporário do cliente." isCompleted={hasPortal}><Button asChild variant="outline"><Link to="/portal">Configurar portal</Link></Button></StepCard>
 
         {/* Step 4 */}
         <StepCard
