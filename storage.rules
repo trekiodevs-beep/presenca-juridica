@@ -1,0 +1,36 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserOfficeId() {
+      return isAuthenticated()
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+        ? firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.officeId
+        : '';
+    }
+
+    function isSameOffice(officeId) {
+      return isAuthenticated()
+        && getUserOfficeId() != ''
+        && getUserOfficeId() == officeId;
+    }
+
+    match /offices/{officeId}/leads/{leadId}/documents/{documentId}/{fileName} {
+      allow read: if isSameOffice(officeId);
+
+      allow write: if isSameOffice(officeId)
+        && request.resource.size <= 15 * 1024 * 1024
+        && request.resource.metadata.officeId == officeId
+        && request.resource.metadata.leadId == leadId
+        && request.resource.metadata.documentId == documentId;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

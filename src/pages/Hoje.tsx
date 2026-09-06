@@ -2,7 +2,7 @@ import React from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
-import { Users, AlertCircle, Clock, Calendar, CheckCircle2, ChevronRight, Plus, Route as RouteIcon, Link as LinkIcon, Smartphone, MonitorSmartphone } from 'lucide-react';
+import { Users, AlertCircle, Clock, Calendar, CheckCircle2, ChevronRight, Plus, Route as RouteIcon, Link as LinkIcon, Smartphone, FileText, CircleDollarSign, ListChecks } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '../components/layout/PageHeader';
 import { isToday, isPast, parseISO } from 'date-fns';
@@ -10,7 +10,7 @@ import { formatDateTime } from '../lib/utils';
 import { Button } from '../components/ui/Button';
 
 export const Hoje = () => {
-  const { leads, loading } = useData();
+  const { leads, loading, tasks, documents, calendarEvents, financialRecords } = useData();
   const { user, office } = useAuth();
 
   if (loading) {
@@ -25,15 +25,17 @@ export const Hoje = () => {
   const waitingTriage = leads.filter(l => l.status === 'Aguardando triagem' || l.status === 'Novo contato').length;
   const delayedActions = leads.filter(l => l.nextActionAt && isPast(parseISO(l.nextActionAt)) && !isToday(parseISO(l.nextActionAt))).length;
   const actionsToday = leads.filter(l => l.nextActionAt && isToday(parseISO(l.nextActionAt))).length;
-  const withoutResponsible = leads.filter(l => !l.responsibleUserId).length;
-  const scheduledConsultations = leads.filter(l => l.status === 'Consulta agendada').length;
+  const calendarToday = calendarEvents.filter(event => event.status === 'Agendado' && isToday(parseISO(event.startAt))).length;
+  const overdueFinancialRecords = financialRecords.filter(record => record.status === 'Vencido').length;
+  const tasksToday = tasks.filter(task => !task.done && isToday(parseISO(task.dueAt))).length;
+  const overdueTasks = tasks.filter(task => !task.done && isPast(parseISO(task.dueAt)) && !isToday(parseISO(task.dueAt))).length;
 
   const statCards = [
     { title: 'Aguardando triagem', value: waitingTriage, icon: Clock, color: 'text-amber-600', bgColor: 'bg-amber-50' },
-    { title: 'Providências vencidas', value: delayedActions, icon: AlertCircle, color: 'text-red-600', bgColor: 'bg-red-50' },
-    { title: 'Próximas providências hoje', value: actionsToday, icon: CheckCircle2, color: 'text-emerald-600', bgColor: 'bg-emerald-50' },
-    { title: 'Sem responsável definido', value: withoutResponsible, icon: Users, color: 'text-slate-600', bgColor: 'bg-slate-100' },
-    { title: 'Consultas agendadas', value: scheduledConsultations, icon: Calendar, color: 'text-indigo-600', bgColor: 'bg-indigo-50' },
+    { title: 'Providências vencidas', value: delayedActions + overdueTasks, icon: AlertCircle, color: 'text-red-600', bgColor: 'bg-red-50' },
+    { title: 'Tarefas hoje', value: actionsToday + calendarToday + tasksToday, icon: ListChecks, color: 'text-emerald-600', bgColor: 'bg-emerald-50' },
+    { title: 'Financeiro vencido', value: overdueFinancialRecords, icon: CircleDollarSign, color: 'text-rose-600', bgColor: 'bg-rose-50' },
+    { title: 'Documentos anexados', value: documents.length, icon: FileText, color: 'text-indigo-600', bgColor: 'bg-indigo-50' },
   ];
 
   const priorityLeads = leads

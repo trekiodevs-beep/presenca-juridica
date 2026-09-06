@@ -3,7 +3,7 @@ import { User, Office } from '../types';
 import { mockUser, mockOffice } from '../mockData';
 import { auth, googleProvider } from '../lib/firebase';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
-import { getOrCreateUser, getOfficeById } from '../services/db';
+import { ensureOfficeTrial, getOrCreateUser, getOfficeById } from '../services/db';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK_DATA === 'true';
 
@@ -45,7 +45,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
           if (userData?.officeId) {
             const officeData = await getOfficeById(userData.officeId);
-            setOffice(officeData);
+            setOffice(officeData ? await ensureOfficeTrial(officeData) : null);
           } else {
             setOffice(null);
           }
@@ -91,7 +91,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (user && !USE_MOCK) {
       setUser({ ...user, officeId });
       const officeData = await getOfficeById(officeId);
-      setOffice(officeData);
+      setOffice(officeData ? await ensureOfficeTrial(officeData) : null);
     }
   };
 

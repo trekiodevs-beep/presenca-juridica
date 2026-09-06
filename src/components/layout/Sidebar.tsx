@@ -1,8 +1,46 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, PlusCircle, Settings, LogOut, Briefcase, Route as RouteIcon, Compass } from 'lucide-react';
+import { LayoutDashboard, Users, PlusCircle, Settings, LogOut, Briefcase, Route as RouteIcon, Compass, CalendarDays, CircleDollarSign, KeyRound, ListChecks } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { cn } from '../../lib/utils';
+
+const navGroups = [
+  {
+    label: 'Início',
+    items: [
+      { name: 'Hoje', path: '/', icon: LayoutDashboard },
+      { name: 'Primeiros passos', path: '/onboarding', icon: Compass },
+    ],
+  },
+  {
+    label: 'Atendimento',
+    items: [
+      { name: 'Contatos', path: '/leads', icon: Users },
+      { name: 'Tarefas', path: '/tarefas', icon: ListChecks },
+      { name: 'Agenda', path: '/agenda', icon: CalendarDays },
+    ],
+  },
+  {
+    label: 'Relacionamento',
+    items: [
+      { name: 'Portal do cliente', path: '/portal', icon: KeyRound },
+      { name: 'Canais de entrada', path: '/canais', icon: RouteIcon },
+    ],
+  },
+  {
+    label: 'Gestão',
+    items: [
+      { name: 'Financeiro', path: '/financeiro', icon: CircleDollarSign },
+      { name: 'Painel de gestão', path: '/dashboard', icon: Briefcase },
+    ],
+  },
+  {
+    label: 'Administração',
+    items: [
+      { name: 'Configurações', path: '/settings', icon: Settings },
+    ],
+  },
+];
 
 export const Sidebar = ({ 
   collapsed = false,
@@ -16,14 +54,10 @@ export const Sidebar = ({
   const { pathname } = useLocation();
   const { logout } = useAuth();
 
-  const navItems = [
-    { name: 'Primeiros passos', path: '/onboarding', icon: Compass },
-    { name: 'Hoje', path: '/', icon: LayoutDashboard },
-    { name: 'Contatos', path: '/leads', icon: Users },
-    { name: 'Canais de entrada', path: '/canais', icon: RouteIcon },
-    { name: 'Painel de gestão', path: '/dashboard', icon: Briefcase },
-    { name: 'Configurações', path: '/settings', icon: Settings },
-  ];
+  const isActivePath = (path: string) => {
+    if (path === '/') return pathname === '/';
+    return pathname === path || pathname.startsWith(`${path}/`);
+  };
 
   return (
     <aside className={cn(
@@ -53,14 +87,14 @@ export const Sidebar = ({
         </div>
       </div>
 
-      <nav className="flex-1 py-6 px-3 space-y-1">
-        <div className="mb-6 px-1">
+      <nav className="sidebar-scrollbar flex-1 overflow-y-auto py-5 px-3">
+        <div className="mb-5 px-1">
           <Link
             to="/leads/new"
             onClick={onCloseMobile}
             title={collapsed ? "Novo contato" : undefined}
             className={cn(
-              "flex items-center gap-3 py-2.5 rounded-md transition-colors text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700",
+              "flex h-11 items-center gap-3 rounded-md transition-colors text-sm font-semibold bg-blue-600 text-white shadow-sm shadow-blue-950/20 hover:bg-blue-700",
               (collapsed && !mobileOpen) ? "justify-center px-0" : "px-3"
             )}
           >
@@ -69,30 +103,47 @@ export const Sidebar = ({
           </Link>
         </div>
 
-        {navItems.map((item) => {
-          const isActive = pathname === item.path || (item.path !== '/' && pathname.startsWith(item.path) && item.path !== '/leads');
-          // Fix logic for /leads matching
-          const isReallyActive = item.path === '/leads' ? pathname === '/leads' : isActive;
-
-          return (
-            <Link
-              key={item.name}
-              to={item.path}
-              title={collapsed ? item.name : undefined}
-              onClick={onCloseMobile}
+        <div className="space-y-5">
+          {navGroups.map((group, groupIndex) => (
+            <div
+              key={group.label}
               className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors text-sm font-medium",
-                isReallyActive 
-                  ? "bg-brand-800 text-white" 
-                  : "hover:bg-brand-800/50 hover:text-white",
-                (collapsed && !mobileOpen) && "justify-center"
+                (collapsed && !mobileOpen) && "border-t border-brand-800/80 pt-4",
+                (collapsed && !mobileOpen) && groupIndex === 0 && "border-t-0 pt-0"
               )}
             >
-              <item.icon className={cn("w-5 h-5 shrink-0", isReallyActive ? "text-brand-100" : "text-slate-400")} />
-              {(!collapsed || mobileOpen) && <span className="truncate">{item.name}</span>}
-            </Link>
-          );
-        })}
+              {(!collapsed || mobileOpen) && (
+                <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-brand-300/80">
+                  {group.label}
+                </p>
+              )}
+              <div className="space-y-1">
+                {group.items.map((item) => {
+                  const isActive = isActivePath(item.path);
+
+                  return (
+                    <Link
+                      key={item.name}
+                      to={item.path}
+                      title={collapsed ? item.name : undefined}
+                      onClick={onCloseMobile}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors text-sm font-medium",
+                        isActive
+                          ? "bg-blue-900/70 text-white ring-1 ring-blue-700/40"
+                          : "text-slate-300 hover:bg-brand-800/50 hover:text-white",
+                        (collapsed && !mobileOpen) && "justify-center"
+                      )}
+                    >
+                      <item.icon className={cn("w-5 h-5 shrink-0", isActive ? "text-blue-200" : "text-slate-400")} />
+                      {(!collapsed || mobileOpen) && <span className="truncate">{item.name}</span>}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
       </nav>
 
       <div className="p-4 border-t border-brand-800 space-y-4">

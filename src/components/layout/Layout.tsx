@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Outlet, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
+import { TrialBanner } from './TrialBanner';
 import { useAuth } from '../../context/AuthContext';
 
 export const Layout = () => {
@@ -139,7 +140,8 @@ export const Layout = () => {
 
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         <Topbar onToggleSidebar={handleToggleSidebar} />
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <TrialBanner />
+        <main className="content-scrollbar flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <Outlet />
         </main>
       </div>

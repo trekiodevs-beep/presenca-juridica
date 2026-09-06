@@ -21,6 +21,11 @@ import { PublicForm } from './pages/PublicForm';
 import { OfficePublicPage } from './pages/OfficePublicPage';
 import { Channels } from './pages/Channels';
 import { Onboarding } from './pages/Onboarding';
+import { Agenda } from './pages/Agenda';
+import { Finance } from './pages/Finance';
+import { Portal } from './pages/Portal';
+import { PublicClientPortal } from './pages/PublicClientPortal';
+import { Tasks } from './pages/Tasks';
 
 export default function App() {
   return (
@@ -32,6 +37,7 @@ export default function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/public/:officeSlug/contact" element={<PublicForm />} />
               <Route path="/o/:officeSlug" element={<OfficePublicPage />} />
+              <Route path="/portal/cliente/:token" element={<PublicClientPortal />} />
               
               <Route path="/" element={<Layout />}>
                 <Route index element={<Hoje />} />
@@ -39,6 +45,10 @@ export default function App() {
                 <Route path="leads" element={<Leads />} />
                 <Route path="leads/new" element={<NewLead />} />
                 <Route path="leads/:id" element={<LeadDetail />} />
+                <Route path="tarefas" element={<Tasks />} />
+                <Route path="agenda" element={<Agenda />} />
+                <Route path="financeiro" element={<Finance />} />
+                <Route path="portal" element={<Portal />} />
                 <Route path="canais" element={<Channels />} />
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="settings" element={<Settings />} />

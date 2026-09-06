@@ -24,3 +24,57 @@ html, body, #root {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+.sidebar-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.34) transparent;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.28);
+  border: 2px solid #070B12;
+  border-radius: 999px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(191, 219, 254, 0.52);
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-button {
+  display: none;
+}
+
+.content-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.32) transparent;
+}
+
+.content-scrollbar::-webkit-scrollbar {
+  width: 10px;
+}
+
+.content-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.content-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(100, 116, 139, 0.26);
+  border: 3px solid #F6F8FB;
+  border-radius: 999px;
+}
+
+.content-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(37, 99, 235, 0.42);
+}
+
+.content-scrollbar::-webkit-scrollbar-button {
+  display: none;
+}

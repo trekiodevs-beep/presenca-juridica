@@ -1,4 +1,4 @@
-import { Lead, Office, User, LeadEvent } from './types';
+import { CalendarEvent, ClientPortalAccess, FinancialRecord, Lead, LeadDocument, LeadEvent, Office, Task, User } from './types';
 
 export const mockUser: User = {
   id: 'u1',
@@ -19,6 +19,10 @@ export const mockOffice: Office = {
   whatsapp: '11999999999',
   email: 'contato@silvaadvogados.com.br',
   areas: ['Direito Trabalhista', 'Direito de Família', 'Direito do Consumidor'],
+  subscriptionStatus: 'TRIALING',
+  trialStartedAt: new Date().toISOString(),
+  trialEndsAt: new Date(Date.now() + 12 * 24 * 60 * 60 * 1000).toISOString(),
+  subscriptionUpdatedAt: new Date().toISOString(),
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 };
@@ -111,4 +115,174 @@ export const mockEvents: LeadEvent[] = [
     createdBy: 'u1',
     createdAt: today.toISOString(),
   }
+];
+
+export const mockTasks: Task[] = [
+  {
+    id: 'task1',
+    officeId: 'o1',
+    leadId: 'l1',
+    title: 'Confirmar dados do contrato de trabalho',
+    dueAt: today.toISOString(),
+    done: false,
+    createdAt: today.toISOString(),
+  },
+  {
+    id: 'task2',
+    officeId: 'o1',
+    leadId: 'l3',
+    title: 'Revisar comprovantes enviados pela cliente',
+    dueAt: tomorrow.toISOString(),
+    done: false,
+    createdAt: yesterday.toISOString(),
+  },
+  {
+    id: 'task3',
+    officeId: 'o1',
+    leadId: 'l2',
+    title: 'Retornar sobre documentos de pensão alimentícia',
+    dueAt: yesterday.toISOString(),
+    done: true,
+    createdAt: yesterday.toISOString(),
+    completedAt: today.toISOString(),
+  },
+];
+
+export const mockDocuments: LeadDocument[] = [
+  {
+    id: 'd1',
+    officeId: 'o1',
+    leadId: 'l1',
+    name: 'Termo de rescisão.pdf',
+    fileName: 'termo-rescisao.pdf',
+    contentType: 'application/pdf',
+    size: 286720,
+    storagePath: 'mock/termo-rescisao.pdf',
+    downloadUrl: '#',
+    category: 'Comprovante',
+    visibleInPortal: true,
+    uploadedBy: 'u1',
+    createdAt: today.toISOString(),
+    updatedAt: today.toISOString(),
+  },
+  {
+    id: 'd2',
+    officeId: 'o1',
+    leadId: 'l3',
+    name: 'Bilhetes e comprovantes.pdf',
+    fileName: 'bilhetes-comprovantes.pdf',
+    contentType: 'application/pdf',
+    size: 192512,
+    storagePath: 'mock/bilhetes-comprovantes.pdf',
+    downloadUrl: '#',
+    category: 'Comprovante',
+    visibleInPortal: false,
+    uploadedBy: 'u1',
+    createdAt: yesterday.toISOString(),
+    updatedAt: yesterday.toISOString(),
+  },
+];
+
+export const mockCalendarEvents: CalendarEvent[] = [
+  {
+    id: 'cal1',
+    officeId: 'o1',
+    leadId: 'l1',
+    title: 'Retorno para Maria Oliveira',
+    type: 'Retorno',
+    status: 'Agendado',
+    startAt: today.toISOString(),
+    endAt: null,
+    location: 'WhatsApp',
+    notes: 'Confirmar documentos de rescisão.',
+    responsibleUserId: 'u1',
+    createdAt: today.toISOString(),
+    updatedAt: today.toISOString(),
+  },
+  {
+    id: 'cal2',
+    officeId: 'o1',
+    leadId: 'l3',
+    title: 'Consulta online com Fernanda Costa',
+    type: 'Consulta',
+    status: 'Agendado',
+    startAt: tomorrow.toISOString(),
+    endAt: null,
+    location: 'Google Meet',
+    notes: 'Revisar comprovantes antes da reunião.',
+    responsibleUserId: 'u1',
+    createdAt: yesterday.toISOString(),
+    updatedAt: today.toISOString(),
+  },
+];
+
+export const mockFinancialRecords: FinancialRecord[] = [
+  {
+    id: 'fin1',
+    officeId: 'o1',
+    leadId: 'l3',
+    type: 'Consulta',
+    status: 'Em aberto',
+    description: 'Consulta inicial online',
+    amount: 350,
+    dueAt: tomorrow.toISOString(),
+    paidAt: null,
+    paymentMethod: 'Pix',
+    notes: 'Enviar chave Pix após confirmação.',
+    createdAt: today.toISOString(),
+    updatedAt: today.toISOString(),
+  },
+  {
+    id: 'fin2',
+    officeId: 'o1',
+    leadId: 'l1',
+    type: 'Honorários',
+    status: 'Previsto',
+    description: 'Honorários trabalhistas iniciais',
+    amount: 1800,
+    dueAt: tomorrow.toISOString(),
+    paidAt: null,
+    paymentMethod: 'Transferência',
+    notes: '',
+    createdAt: today.toISOString(),
+    updatedAt: today.toISOString(),
+  },
+];
+
+export const mockPortalAccesses: ClientPortalAccess[] = [
+  {
+    id: 'portal-demo',
+    officeId: 'o1',
+    leadId: 'l1',
+    clientName: 'Maria Oliveira',
+    clientEmail: 'maria.oliveira@email.com',
+    statusLabel: 'Documentos em análise',
+    publicNotes: 'Recebemos os documentos iniciais. O escritório fará contato para confirmar os próximos passos.',
+    pendingItems: ['Enviar comprovante de pagamento do último salário'],
+    documents: [
+      {
+        id: 'd1',
+        name: 'Termo de rescisão.pdf',
+        category: 'Comprovante',
+        downloadUrl: '#',
+        contentType: 'application/pdf',
+        size: 286720,
+        uploadedAt: today.toISOString(),
+      },
+    ],
+    appointments: [
+      {
+        id: 'cal1',
+        title: 'Retorno para Maria Oliveira',
+        type: 'Retorno',
+        startAt: today.toISOString(),
+        endAt: null,
+        location: 'WhatsApp',
+      },
+    ],
+    isActive: true,
+    expiresAt: null,
+    createdAt: today.toISOString(),
+    updatedAt: today.toISOString(),
+  },
 ];

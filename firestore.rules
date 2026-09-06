@@ -27,6 +27,46 @@ service cloud.firestore {
         ).data.officeId == request.resource.data.officeId;
     }
 
+    function isSameOffice(officeId) {
+      return isAuthenticated()
+        && getUserOfficeId() != ''
+        && getUserOfficeId() == officeId;
+    }
+
+    function isValidPortalAccess() {
+      return request.resource.data.keys().hasOnly([
+          'id',
+          'officeId',
+          'leadId',
+          'clientName',
+          'clientEmail',
+          'statusLabel',
+          'publicNotes',
+          'pendingItems',
+          'documents',
+          'appointments',
+          'isActive',
+          'expiresAt',
+          'createdAt',
+          'updatedAt'
+        ])
+        && request.resource.data.id is string
+        && request.resource.data.officeId is string
+        && request.resource.data.leadId is string
+        && request.resource.data.clientName is string
+        && request.resource.data.statusLabel is string
+        && request.resource.data.pendingItems is list
+        && request.resource.data.documents is list
+        && request.resource.data.appointments is list
+        && request.resource.data.isActive is bool
+        && (
+          request.resource.data.expiresAt == null
+          || request.resource.data.expiresAt is string
+        )
+        && exists(/databases/$(database)/documents/leads/$(request.resource.data.leadId))
+        && get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.officeId == request.resource.data.officeId;
+    }
+
     match /users/{userId} {
       allow read: if isAuthenticated()
         && request.auth.uid == userId;
@@ -83,6 +123,29 @@ service cloud.firestore {
       allow create: if isAuthenticated()
         && request.resource.data.ownerUserId == request.auth.uid
         && request.resource.data.id == officeId
+        && request.resource.data.subscriptionStatus == 'TRIALING'
+        && request.resource.data.trialStartedAt is string
+        && request.resource.data.trialEndsAt is string
+        && request.resource.data.subscriptionUpdatedAt == request.resource.data.trialStartedAt
+        && request.resource.data.keys().hasOnly([
+          'id',
+          'name',
+          'lawyerName',
+          'oab',
+          'city',
+          'state',
+          'whatsapp',
+          'email',
+          'areas',
+          'slug',
+          'subscriptionStatus',
+          'trialStartedAt',
+          'trialEndsAt',
+          'subscriptionUpdatedAt',
+          'createdAt',
+          'updatedAt',
+          'ownerUserId'
+        ])
         && exists(
           /databases/$(database)/documents/users/$(request.auth.uid)
         )
@@ -98,29 +161,48 @@ service cloud.firestore {
           /databases/$(database)/documents/users/$(request.auth.uid)
         ).data.role;
 
-      allow read: if isAuthenticated()
-        && getUserOfficeId() == officeId;
+      allow read: if isSameOffice(officeId);
 
       allow update: if isAuthenticated()
-        && getUserOfficeId() == officeId
+        && isSameOffice(officeId)
         && request.resource.data.id == resource.data.id
         && request.resource.data.ownerUserId == resource.data.ownerUserId
         && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data
-          .diff(resource.data)
-          .affectedKeys()
-          .hasOnly([
-            'name',
-            'lawyerName',
-            'oab',
-            'city',
-            'state',
-            'whatsapp',
-            'email',
-            'areas',
-            'slug',
-            'updatedAt'
-          ]);
+        && (
+          request.resource.data
+            .diff(resource.data)
+            .affectedKeys()
+            .hasOnly([
+              'name',
+              'lawyerName',
+              'oab',
+              'city',
+              'state',
+              'whatsapp',
+              'email',
+              'areas',
+              'slug',
+              'updatedAt'
+            ])
+          ||
+          (
+            !('trialEndsAt' in resource.data)
+            && request.resource.data.subscriptionStatus == 'TRIALING'
+            && request.resource.data.trialStartedAt is string
+            && request.resource.data.trialEndsAt is string
+            && request.resource.data.subscriptionUpdatedAt == request.resource.data.trialStartedAt
+            && request.resource.data
+              .diff(resource.data)
+              .affectedKeys()
+              .hasOnly([
+                'subscriptionStatus',
+                'trialStartedAt',
+                'trialEndsAt',
+                'subscriptionUpdatedAt',
+                'updatedAt'
+              ])
+          )
+        );
 
       // Delete permanece bloqueado por ausência de allow delete.
     }
@@ -180,8 +262,8 @@ service cloud.firestore {
     match /leads/{leadId} {
       allow create: if (
         isAuthenticated()
-        && getUserOfficeId() != ''
-        && getUserOfficeId() == request.resource.data.officeId
+        && isSameOffice(request.resource.data.officeId)
+        && request.resource.data.id == leadId
       ) || (
         request.resource.data.createdVia == 'public_form'
         && request.resource.data.keys().hasOnly([
@@ -268,26 +350,158 @@ service cloud.firestore {
         && !('attachments' in request.resource.data)
       );
 
-      allow read, update, delete: if isAuthenticated()
-        && getUserOfficeId() == resource.data.officeId;
+      allow read: if isSameOffice(resource.data.officeId);
+
+      allow update: if isSameOffice(resource.data.officeId)
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.officeId == resource.data.officeId
+        && request.resource.data.createdAt == resource.data.createdAt;
+
+      allow delete: if isSameOffice(resource.data.officeId);
     }
 
     match /leadEvents/{eventId} {
       allow create: if (
         isAuthenticated()
-        && getUserOfficeId() == request.resource.data.officeId
-      ) || request.resource.data.createdBy == 'public_form';
+        && isSameOffice(request.resource.data.officeId)
+      ) || (
+        request.resource.data.createdBy == 'public_form'
+        && request.resource.data.id == eventId
+        && request.resource.data.type == 'created'
+        && request.resource.data.leadId is string
+        && getAfter(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.createdVia == 'public_form'
+        && getAfter(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.officeId == request.resource.data.officeId
+      );
 
-      allow read, update, delete: if isAuthenticated()
-        && getUserOfficeId() == resource.data.officeId;
+      allow read: if isSameOffice(resource.data.officeId);
+
+      allow update, delete: if false;
     }
 
     match /tasks/{taskId} {
-      allow create: if isAuthenticated()
-        && getUserOfficeId() == request.resource.data.officeId;
+      allow create: if isSameOffice(request.resource.data.officeId)
+        && request.resource.data.id == taskId
+        && request.resource.data.title is string
+        && request.resource.data.title.size() >= 2
+        && request.resource.data.title.size() <= 180
+        && request.resource.data.dueAt is string
+        && request.resource.data.done is bool;
 
-      allow read, update, delete: if isAuthenticated()
-        && getUserOfficeId() == resource.data.officeId;
+      allow read: if isSameOffice(resource.data.officeId);
+
+      allow update: if isSameOffice(resource.data.officeId)
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.officeId == resource.data.officeId
+        && request.resource.data.createdAt == resource.data.createdAt;
+
+      allow delete: if isSameOffice(resource.data.officeId);
+    }
+
+    match /leadDocuments/{documentId} {
+      allow create: if isSameOffice(request.resource.data.officeId)
+        && request.resource.data.id == documentId
+        && request.resource.data.leadId is string
+        && exists(/databases/$(database)/documents/leads/$(request.resource.data.leadId))
+        && get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.officeId == request.resource.data.officeId
+        && request.resource.data.keys().hasOnly([
+          'id',
+          'officeId',
+          'leadId',
+          'name',
+          'fileName',
+          'contentType',
+          'size',
+          'storagePath',
+          'downloadUrl',
+          'category',
+          'visibleInPortal',
+          'uploadedBy',
+          'createdAt',
+          'updatedAt'
+        ])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 180
+        && request.resource.data.size is number
+        && request.resource.data.size > 0
+        && request.resource.data.size <= 15728640
+        && request.resource.data.visibleInPortal is bool;
+
+      allow read: if isSameOffice(resource.data.officeId);
+
+      allow update: if isSameOffice(resource.data.officeId)
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.officeId == resource.data.officeId
+        && request.resource.data.leadId == resource.data.leadId
+        && request.resource.data.storagePath == resource.data.storagePath
+        && request.resource.data.uploadedBy == resource.data.uploadedBy
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name',
+          'category',
+          'visibleInPortal',
+          'updatedAt'
+        ]);
+
+      allow delete: if isSameOffice(resource.data.officeId);
+    }
+
+    match /calendarEvents/{eventId} {
+      allow create: if isSameOffice(request.resource.data.officeId)
+        && request.resource.data.id == eventId
+        && request.resource.data.title is string
+        && request.resource.data.title.size() >= 2
+        && request.resource.data.title.size() <= 160
+        && request.resource.data.startAt is string;
+
+      allow read: if isSameOffice(resource.data.officeId);
+
+      allow update: if isSameOffice(resource.data.officeId)
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.officeId == resource.data.officeId
+        && request.resource.data.createdAt == resource.data.createdAt;
+
+      allow delete: if isSameOffice(resource.data.officeId);
+    }
+
+    match /financialRecords/{recordId} {
+      allow create: if isSameOffice(request.resource.data.officeId)
+        && request.resource.data.id == recordId
+        && request.resource.data.description is string
+        && request.resource.data.description.size() >= 2
+        && request.resource.data.description.size() <= 180
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0;
+
+      allow read: if isSameOffice(resource.data.officeId);
+
+      allow update: if isSameOffice(resource.data.officeId)
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.officeId == resource.data.officeId
+        && request.resource.data.createdAt == resource.data.createdAt;
+
+      allow delete: if isSameOffice(resource.data.officeId);
+    }
+
+    match /clientPortalAccess/{token} {
+      allow get: if (
+          resource.data.isActive == true
+          && resource.data.id == token
+        ) || isSameOffice(resource.data.officeId);
+
+      allow create: if isSameOffice(request.resource.data.officeId)
+        && request.resource.data.id == token
+        && isValidPortalAccess();
+
+      allow list: if isSameOffice(resource.data.officeId);
+
+      allow update: if isSameOffice(resource.data.officeId)
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.officeId == resource.data.officeId
+        && request.resource.data.leadId == resource.data.leadId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && isValidPortalAccess();
+
+      allow delete: if isSameOffice(resource.data.officeId);
     }
   }
 }

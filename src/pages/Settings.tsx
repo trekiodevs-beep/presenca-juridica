@@ -5,9 +5,10 @@ import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { createOffice, updateOffice as dbUpdateOffice, updatePublicForm } from '../services/db';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, Building2, MessageSquare, ShieldAlert, Link as LinkIcon, Copy, ExternalLink, Globe } from 'lucide-react';
+import { CheckCircle2, Building2, MessageSquare, ShieldAlert, Link as LinkIcon, Copy, ExternalLink, Globe, Clock } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { useToast } from '../context/ToastContext';
+import { getTrialState, TRIAL_DAYS } from '../lib/trial';
 
 const DEFAULT_AREAS = ['Direito de Família', 'Direito Trabalhista', 'Direito do Consumidor', 'Direito Empresarial'];
 
@@ -36,6 +37,8 @@ export const Settings = () => {
     state: '',
     slug: ''
   });
+
+  const trialState = getTrialState(office);
 
   useEffect(() => {
     if (office) {
@@ -141,6 +144,45 @@ export const Settings = () => {
           <p className="font-medium text-sm">Configurações salvas com sucesso!</p>
         </div>
       )}
+
+      <Card className="border-slate-200 shadow-sm overflow-hidden">
+        <CardHeader className="bg-slate-50 border-b border-slate-100 py-4">
+          <CardTitle className="text-base text-brand-900 flex items-center gap-2">
+            <Clock className="w-4 h-4 text-brand-700" />
+            Plano comercial
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-bold text-slate-900">
+                {office
+                  ? trialState?.label ?? 'Plano não configurado'
+                  : `Teste grátis de ${TRIAL_DAYS} dias`}
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                {office
+                  ? 'O teste permite validar captação, triagem, histórico e retorno pelo WhatsApp antes da contratação.'
+                  : 'Ao criar o escritório, o período de teste começa automaticamente.'}
+              </p>
+            </div>
+
+            <span className={`inline-flex w-fit items-center rounded-md px-3 py-1.5 text-xs font-semibold ${
+              trialState?.kind === 'expired'
+                ? 'bg-red-50 text-red-700 ring-1 ring-red-200'
+                : trialState?.kind === 'active'
+                  ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
+                  : 'bg-brand-50 text-brand-700 ring-1 ring-brand-200'
+            }`}>
+              {trialState?.kind === 'expired'
+                ? 'Conversão pendente'
+                : trialState?.kind === 'active'
+                  ? 'Ativo'
+                  : `${TRIAL_DAYS} dias de teste`}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         

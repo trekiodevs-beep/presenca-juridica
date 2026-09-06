@@ -1,8 +1,27 @@
 import { collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, orderBy, onSnapshot, serverTimestamp, writeBatch } from 'firebase/firestore';
-import { db, auth } from '../lib/firebase';
-import { User, Office, Lead, LeadEvent, Task, PublicForm } from '../types';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import { db, auth, storage } from '../lib/firebase';
+import {
+  User,
+  Office,
+  Lead,
+  LeadEvent,
+  Task,
+  PublicForm,
+  LeadDocument,
+  CalendarEvent,
+  FinancialRecord,
+  ClientPortalAccess,
+  DocumentCategory,
+} from '../types';
+import { createTrialWindow } from '../lib/trial';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK_DATA === 'true';
+
+const createPortalToken = () => {
+  const randomPart = crypto.getRandomValues(new Uint32Array(4));
+  return Array.from(randomPart, value => value.toString(36)).join('');
+};
 
 // --------------------------------------------------------
 // FIRESTORE ERROR HANDLING (MANDATORY per firebase-integration skill)
@@ -119,8 +138,10 @@ export const createOffice = async (office: Omit<Office, 'id' | 'createdAt' | 'up
     if (!userId) throw new Error('User not authenticated');
 
     const newOfficeRef = doc(collection(db, 'offices'));
+    const trialWindow = createTrialWindow();
     const newOffice = {
       ...office,
+      ...trialWindow,
       id: newOfficeRef.id,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -138,6 +159,27 @@ export const createOffice = async (office: Omit<Office, 'id' | 'createdAt' | 'up
     return newOfficeRef.id;
   } catch (error) {
     return handleFirestoreError(error, OperationType.CREATE, path);
+  }
+};
+
+export const ensureOfficeTrial = async (office: Office): Promise<Office> => {
+  if (USE_MOCK || office.subscriptionStatus || office.trialEndsAt) return office;
+
+  const path = `offices/${office.id}`;
+  try {
+    const officeRef = doc(db, 'offices', office.id);
+    const trialWindow = createTrialWindow();
+    const updatedAt = new Date().toISOString();
+
+    await updateDoc(officeRef, { ...trialWindow, updatedAt });
+
+    return {
+      ...office,
+      ...trialWindow,
+      updatedAt,
+    };
+  } catch (error) {
+    return handleFirestoreError(error, OperationType.UPDATE, path);
   }
 };
 
@@ -225,20 +267,19 @@ export const createLead = async (lead: Omit<Lead, 'id' | 'createdAt' | 'updatedA
       updatedAt: now,
     };
     
-    await setDoc(newLeadRef, newLead);
-    
-    // Auto create event
-    try {
-      await addLeadEvent({
-        officeId: lead.officeId,
-        leadId: newLeadRef.id,
-        type: 'created',
-        description: lead.createdVia === 'public_form' ? 'Contato criado a partir do formulário público' : 'Contato criado no sistema',
-        createdBy: lead.createdVia === 'public_form' ? 'public_form' : (lead.responsibleUserId || 'Sistema')
-      });
-    } catch (eventError) {
-      console.warn('Failed to auto-create lead event, but lead was created:', eventError);
-    }
+    const eventRef = doc(collection(db, 'leadEvents'));
+    const batch = writeBatch(db);
+    batch.set(newLeadRef, newLead);
+    batch.set(eventRef, {
+      id: eventRef.id,
+      officeId: lead.officeId,
+      leadId: newLeadRef.id,
+      type: 'created',
+      description: lead.createdVia === 'public_form' ? 'Contato criado a partir do formulário público' : 'Contato criado no sistema',
+      createdBy: lead.createdVia === 'public_form' ? 'public_form' : (lead.responsibleUserId || 'Sistema'),
+      createdAt: now,
+    });
+    await batch.commit();
     
     return newLeadRef.id;
   } catch (error) {
@@ -298,19 +339,19 @@ export const createPublicLead = async (
     if (leadData.utmMedium) newLead.utmMedium = leadData.utmMedium;
     if (leadData.utmCampaign) newLead.utmCampaign = leadData.utmCampaign;
     
-    await setDoc(newLeadRef, newLead);
-    
-    try {
-      await addLeadEvent({
-        officeId: leadData.officeId,
-        leadId: newLeadRef.id,
-        type: 'created',
-        description: 'Contato criado a partir do formulário público',
-        createdBy: 'public_form'
-      });
-    } catch (eventError) {
-      console.warn('Failed to auto-create lead event, but lead was created:', eventError);
-    }
+    const eventRef = doc(collection(db, 'leadEvents'));
+    const batch = writeBatch(db);
+    batch.set(newLeadRef, newLead);
+    batch.set(eventRef, {
+      id: eventRef.id,
+      officeId: leadData.officeId,
+      leadId: newLeadRef.id,
+      type: 'created',
+      description: 'Contato criado a partir do formulário público',
+      createdBy: 'public_form',
+      createdAt: now,
+    });
+    await batch.commit();
     
     return newLeadRef.id;
   } catch (error) {
@@ -363,5 +404,304 @@ export const addLeadEvent = async (event: Omit<LeadEvent, 'id' | 'createdAt'>) =
     await setDoc(newEventRef, newEvent);
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, path);
+  }
+};
+
+// --------------------------------------------------------
+// TASK SERVICES
+// --------------------------------------------------------
+export const listenTasksByOffice = (officeId: string, callback: (tasks: Task[]) => void) => {
+  if (USE_MOCK) return () => {};
+
+  const path = 'tasks';
+  try {
+    const q = query(collection(db, 'tasks'), where('officeId', '==', officeId), orderBy('dueAt', 'asc'));
+
+    return onSnapshot(q, (snapshot) => {
+      callback(snapshot.docs.map(doc => doc.data() as Task));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+    });
+  } catch (error) {
+    return handleFirestoreError(error, OperationType.LIST, path);
+  }
+};
+
+export const createTask = async (task: Omit<Task, 'id' | 'createdAt'>): Promise<string> => {
+  if (USE_MOCK) return `mock-task-${Date.now()}`;
+
+  const path = 'tasks';
+  try {
+    const taskRef = doc(collection(db, 'tasks'));
+    const taskData: Task = {
+      ...task,
+      id: taskRef.id,
+      createdAt: new Date().toISOString(),
+    };
+
+    await setDoc(taskRef, taskData);
+    return taskRef.id;
+  } catch (error) {
+    return handleFirestoreError(error, OperationType.CREATE, path);
+  }
+};
+
+export const updateTask = async (taskId: string, updates: Partial<Task>) => {
+  if (USE_MOCK) return;
+
+  const path = `tasks/${taskId}`;
+  try {
+    const taskRef = doc(db, 'tasks', taskId);
+    await updateDoc(taskRef, updates);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+};
+
+// --------------------------------------------------------
+// DOCUMENT SERVICES
+// --------------------------------------------------------
+export const listenDocumentsByOffice = (officeId: string, callback: (documents: LeadDocument[]) => void) => {
+  if (USE_MOCK) return () => {};
+
+  const path = 'leadDocuments';
+  try {
+    const q = query(collection(db, 'leadDocuments'), where('officeId', '==', officeId), orderBy('createdAt', 'desc'));
+
+    return onSnapshot(q, (snapshot) => {
+      callback(snapshot.docs.map(doc => doc.data() as LeadDocument));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+    });
+  } catch (error) {
+    return handleFirestoreError(error, OperationType.LIST, path);
+  }
+};
+
+export const uploadLeadDocument = async ({
+  officeId,
+  leadId,
+  file,
+  category,
+  visibleInPortal,
+  uploadedBy,
+}: {
+  officeId: string;
+  leadId: string;
+  file: File;
+  category: DocumentCategory;
+  visibleInPortal: boolean;
+  uploadedBy: string;
+}): Promise<string> => {
+  if (USE_MOCK) return `mock-document-${Date.now()}`;
+
+  const path = 'leadDocuments';
+  try {
+    if (!file) throw new Error('Arquivo não informado');
+    if (file.size > 15 * 1024 * 1024) throw new Error('Arquivo excede o limite de 15MB');
+
+    const documentRef = doc(collection(db, 'leadDocuments'));
+    const storagePath = `offices/${officeId}/leads/${leadId}/documents/${documentRef.id}/${file.name}`;
+    const fileRef = ref(storage, storagePath);
+
+    await uploadBytes(fileRef, file, {
+      contentType: file.type || 'application/octet-stream',
+      customMetadata: {
+        officeId,
+        leadId,
+        documentId: documentRef.id,
+      },
+    });
+
+    const downloadUrl = await getDownloadURL(fileRef);
+    const now = new Date().toISOString();
+    const documentData: LeadDocument = {
+      id: documentRef.id,
+      officeId,
+      leadId,
+      name: file.name,
+      fileName: file.name,
+      contentType: file.type || 'application/octet-stream',
+      size: file.size,
+      storagePath,
+      downloadUrl,
+      category,
+      visibleInPortal,
+      uploadedBy,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await setDoc(documentRef, documentData);
+    return documentRef.id;
+  } catch (error) {
+    return handleFirestoreError(error, OperationType.CREATE, path);
+  }
+};
+
+// --------------------------------------------------------
+// CALENDAR SERVICES
+// --------------------------------------------------------
+export const listenCalendarEventsByOffice = (officeId: string, callback: (calendarEvents: CalendarEvent[]) => void) => {
+  if (USE_MOCK) return () => {};
+
+  const path = 'calendarEvents';
+  try {
+    const q = query(collection(db, 'calendarEvents'), where('officeId', '==', officeId), orderBy('startAt', 'asc'));
+
+    return onSnapshot(q, (snapshot) => {
+      callback(snapshot.docs.map(doc => doc.data() as CalendarEvent));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+    });
+  } catch (error) {
+    return handleFirestoreError(error, OperationType.LIST, path);
+  }
+};
+
+export const createCalendarEvent = async (event: Omit<CalendarEvent, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
+  if (USE_MOCK) return `mock-calendar-${Date.now()}`;
+
+  const path = 'calendarEvents';
+  try {
+    const eventRef = doc(collection(db, 'calendarEvents'));
+    const now = new Date().toISOString();
+    const eventData: CalendarEvent = {
+      ...event,
+      id: eventRef.id,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await setDoc(eventRef, eventData);
+    return eventRef.id;
+  } catch (error) {
+    return handleFirestoreError(error, OperationType.CREATE, path);
+  }
+};
+
+export const updateCalendarEvent = async (eventId: string, updates: Partial<CalendarEvent>) => {
+  if (USE_MOCK) return;
+
+  const path = `calendarEvents/${eventId}`;
+  try {
+    const eventRef = doc(db, 'calendarEvents', eventId);
+    await updateDoc(eventRef, { ...updates, updatedAt: new Date().toISOString() });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+};
+
+// --------------------------------------------------------
+// FINANCIAL SERVICES
+// --------------------------------------------------------
+export const listenFinancialRecordsByOffice = (officeId: string, callback: (records: FinancialRecord[]) => void) => {
+  if (USE_MOCK) return () => {};
+
+  const path = 'financialRecords';
+  try {
+    const q = query(collection(db, 'financialRecords'), where('officeId', '==', officeId), orderBy('createdAt', 'desc'));
+
+    return onSnapshot(q, (snapshot) => {
+      callback(snapshot.docs.map(doc => doc.data() as FinancialRecord));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+    });
+  } catch (error) {
+    return handleFirestoreError(error, OperationType.LIST, path);
+  }
+};
+
+export const createFinancialRecord = async (record: Omit<FinancialRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
+  if (USE_MOCK) return `mock-financial-${Date.now()}`;
+
+  const path = 'financialRecords';
+  try {
+    const recordRef = doc(collection(db, 'financialRecords'));
+    const now = new Date().toISOString();
+    const recordData: FinancialRecord = {
+      ...record,
+      id: recordRef.id,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await setDoc(recordRef, recordData);
+    return recordRef.id;
+  } catch (error) {
+    return handleFirestoreError(error, OperationType.CREATE, path);
+  }
+};
+
+export const updateFinancialRecord = async (recordId: string, updates: Partial<FinancialRecord>) => {
+  if (USE_MOCK) return;
+
+  const path = `financialRecords/${recordId}`;
+  try {
+    const recordRef = doc(db, 'financialRecords', recordId);
+    await updateDoc(recordRef, { ...updates, updatedAt: new Date().toISOString() });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+};
+
+// --------------------------------------------------------
+// CLIENT PORTAL SERVICES
+// --------------------------------------------------------
+export const listenClientPortalAccessByOffice = (officeId: string, callback: (accesses: ClientPortalAccess[]) => void) => {
+  if (USE_MOCK) return () => {};
+
+  const path = 'clientPortalAccess';
+  try {
+    const q = query(collection(db, 'clientPortalAccess'), where('officeId', '==', officeId), orderBy('updatedAt', 'desc'));
+
+    return onSnapshot(q, (snapshot) => {
+      callback(snapshot.docs.map(doc => doc.data() as ClientPortalAccess));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+    });
+  } catch (error) {
+    return handleFirestoreError(error, OperationType.LIST, path);
+  }
+};
+
+export const getClientPortalAccessByToken = async (token: string): Promise<ClientPortalAccess | null> => {
+  if (USE_MOCK) return null;
+
+  const path = `clientPortalAccess/${token}`;
+  try {
+    const accessRef = doc(db, 'clientPortalAccess', token);
+    const snap = await getDoc(accessRef);
+    return snap.exists() ? (snap.data() as ClientPortalAccess) : null;
+  } catch (error) {
+    return handleFirestoreError(error, OperationType.GET, path);
+  }
+};
+
+export const upsertClientPortalAccess = async (
+  data: Omit<ClientPortalAccess, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }
+): Promise<string> => {
+  if (USE_MOCK) return data.id || `mock-portal-${Date.now()}`;
+
+  const path = 'clientPortalAccess';
+  try {
+    const id = data.id || createPortalToken();
+    const accessRef = doc(db, 'clientPortalAccess', id);
+    const snap = await getDoc(accessRef);
+    const now = new Date().toISOString();
+    const payload: ClientPortalAccess = {
+      ...data,
+      id,
+      pendingItems: data.pendingItems || [],
+      documents: data.documents || [],
+      appointments: data.appointments || [],
+      createdAt: snap.exists() ? (snap.data() as ClientPortalAccess).createdAt : now,
+      updatedAt: now,
+    };
+
+    await setDoc(accessRef, payload);
+    return id;
+  } catch (error) {
+    return handleFirestoreError(error, OperationType.WRITE, path);
   }
 };
