@@ -11,8 +11,10 @@
 
 - Convites, LGPD, suporte e diagnóstico autorizado são processados por Functions com escopo e auditoria.
 - Documentos usam Storage privado e URLs temporárias emitidas pelo backend.
-- Google Agenda usa OAuth, calendar_connections e calendar_sync_outbox.
-- O worker de agenda deve ser chamado por scheduler com CALENDAR_SYNC_WORKER_SECRET.
+- Google Agenda usa OAuth, `calendar_connections`, `calendar_events`, snapshots e `calendar_sync_outbox`.
+- `calendar-sync-worker` processa CRM → Google; `calendar-reconcile` processa Google → CRM com `syncToken`.
+- O scheduler deve chamar ambos com `CALENDAR_SYNC_WORKER_SECRET`; o webhook apenas agenda uma reconciliação.
+- Exclusões são lógicas e conflitos ficam explícitos até decisão do usuário.
 - Cobrança permanece desabilitada até gateway, webhook idempotente e homologação.
 
 ## Variáveis de backend
@@ -23,13 +25,14 @@
 - GOOGLE_CALENDAR_REDIRECT_URI
 - CALENDAR_TOKEN_ENCRYPTION_KEY
 - CALENDAR_SYNC_WORKER_SECRET
+- GOOGLE_CALENDAR_WEBHOOK_TOKEN
 
 ## Gates de homologação
 
 - dois escritórios sem leitura cruzada;
 - papéis owner, admin, lawyer, assistant e read;
 - convites, documentos, portal e LGPD;
-- OAuth, listagem, seleção, retry e idempotência da agenda;
+- OAuth, listagem, seleção, CRUD, exclusão, retry, idempotência, reconciliação incremental e conflitos da agenda;
 - suporte autorizado, expiração e trilha de auditoria;
 - backup/restore, logs e alertas.
 

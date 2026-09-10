@@ -31,9 +31,10 @@ GOOGLE_CALENDAR_CLIENT_SECRET="..."
 GOOGLE_CALENDAR_REDIRECT_URI="https://PROJECT_REF.supabase.co/functions/v1/calendar-oauth-callback"
 CALENDAR_TOKEN_ENCRYPTION_KEY="base64 de exatamente 32 bytes"
 CALENDAR_SYNC_WORKER_SECRET="segredo forte do worker"
+GOOGLE_CALENDAR_WEBHOOK_TOKEN="segredo forte do webhook"
 ```
 
-`GOOGLE_CALENDAR_CLIENT_SECRET`, `CALENDAR_TOKEN_ENCRYPTION_KEY`, `CALENDAR_SYNC_WORKER_SECRET` e `SUPABASE_SERVICE_ROLE_KEY` nunca podem aparecer no bundle ou em logs.
+`GOOGLE_CALENDAR_CLIENT_SECRET`, `CALENDAR_TOKEN_ENCRYPTION_KEY`, `CALENDAR_SYNC_WORKER_SECRET`, `GOOGLE_CALENDAR_WEBHOOK_TOKEN` e `SUPABASE_SERVICE_ROLE_KEY` nunca podem aparecer no bundle ou em logs.
 
 ## 4. Validação local
 
@@ -75,6 +76,11 @@ supabase functions deploy calendar-connection-status
 supabase functions deploy calendar-list
 supabase functions deploy calendar-select
 supabase functions deploy calendar-sync-worker --no-verify-jwt
+supabase functions deploy calendar-sync-now
+supabase functions deploy calendar-reconcile --no-verify-jwt
+supabase functions deploy calendar-event-delete
+supabase functions deploy calendar-conflict-resolve
+supabase functions deploy calendar-webhook --no-verify-jwt
 supabase functions deploy platform-admin
 supabase functions deploy support-access
 supabase functions deploy support-requests
@@ -101,8 +107,8 @@ Prove com dois escritórios descartáveis:
 3. papéis `owner`, `admin`, `lawyer`, `assistant` e `read`;
 4. convites e transferência de propriedade;
 5. leads, tarefas, documentos e portal;
-6. OAuth, listagem, seleção e sincronização Google Agenda;
-7. retry, idempotência e conflito do outbox;
+6. OAuth, listagem, seleção, CRUD e sincronização bidirecional Google Agenda;
+7. retry, idempotência, exclusão, `syncToken`, `410 Gone` e conflitos;
 8. inbox, suporte autorizado, expiração e auditoria;
 9. LGPD, backup, restore, logs e alertas.
 

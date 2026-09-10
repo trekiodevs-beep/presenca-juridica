@@ -9,6 +9,7 @@
 - [ ] Secrets das Edge Functions configurados somente no backend.
 - [ ] OAuth Google Calendar configurado para local e Cloud.
 - [ ] Scheduler do calendar-sync-worker configurado e protegido.
+- [ ] Scheduler também chama calendar-reconcile; webhook possui token, canal e expiração configurados.
 
 ## Provas obrigatórias
 
@@ -16,7 +17,8 @@
 - [ ] Dois tenants não conseguem ler ou alterar dados entre si.
 - [ ] Papéis e convites validados.
 - [ ] Upload, download temporário e portal validados.
-- [ ] OAuth, seleção de agenda, criação, atualização, retry e idempotência validados.
+- [ ] OAuth, seleção de agenda, CRUD, exclusão lógica, criação externa, reconciliação, retry e idempotência validados.
+- [ ] Conflitos preservam snapshots e exigem decisão explícita CRM/Google/manual.
 - [ ] Inbox, suporte autorizado, expiração e auditoria validados.
 - [ ] LGPD, logs, backup e restauração validados.
 - [ ] HTTPS, monitoramento e alertas configurados.

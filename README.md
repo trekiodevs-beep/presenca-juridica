@@ -34,8 +34,8 @@ Use o tipo de aplicacao `Dockerfile`.
 
 Configuracao recomendada:
 
-- Repository: `MatheusMartins33/CRM---Presen-a-Juridica`
-- Branch: `main`
+- Repository: `trekiodevs-beep/presenca-juridica`
+- Branch: `codex/saas-production-readiness` para homologação; `main` após merge aprovado
 - Build Pack: `Dockerfile`
 - Port: `80`
 - Healthcheck path: `/`
@@ -79,9 +79,14 @@ supabase functions deploy calendar-oauth-callback
 supabase functions deploy calendar-list
 supabase functions deploy calendar-select
 supabase functions deploy calendar-sync-worker --no-verify-jwt
+supabase functions deploy calendar-sync-now
+supabase functions deploy calendar-reconcile --no-verify-jwt
+supabase functions deploy calendar-event-delete
+supabase functions deploy calendar-conflict-resolve
+supabase functions deploy calendar-webhook --no-verify-jwt
 ```
 
-Configure os secrets no Supabase, incluindo `APP_URL`, credenciais OAuth Google, `CALENDAR_TOKEN_ENCRYPTION_KEY` e `CALENDAR_SYNC_WORKER_SECRET`. Nunca coloque refresh tokens ou service-role keys no frontend.
+Configure os secrets no Supabase, incluindo `APP_URL`, credenciais OAuth Google, `CALENDAR_TOKEN_ENCRYPTION_KEY`, `CALENDAR_SYNC_WORKER_SECRET` e `GOOGLE_CALENDAR_WEBHOOK_TOKEN`. Nunca coloque refresh tokens ou service-role keys no frontend.
 
 ### Limites e dados existentes
 
@@ -102,3 +107,5 @@ Runbooks: [deploy de produção](docs/deploy-producao.md), [operação SaaS](doc
 - Upload de documento validado.
 - Portal do cliente validado.
 - Isolamento entre escritorios validado.
+
+Documentação específica: [operação Google Calendar](docs/calendar-google-operacao.md).
