@@ -7,7 +7,7 @@ import {
   MessageSquare, Plus, CheckCircle2, ChevronRight, 
   Phone, Sparkles, Scale, Info
 } from 'lucide-react';
-import { createLead, addLeadEvent } from '../services/db';
+import { createLead, addLeadEvent } from '../services/supabaseDb';
 import { formatPhoneForDisplay, formatPhoneForWhatsapp } from '../lib/utils';
 import { PageHeader } from '../components/layout/PageHeader';
 import { useToast } from '../context/ToastContext';

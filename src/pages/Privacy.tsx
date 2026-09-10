@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { Button } from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { cancelOfficeDeletion, decideSupportAccess, exportOfficeData, listSupportAccessRequests, requestOfficeDeletion, type SupportAccessRequest } from '../lib/admin';
+import { decideSupportAccess, listSupportAccessRequests, type SupportAccessRequest } from '../services/supabaseSupportAccess';
+import { cancelOfficeDeletion, exportOfficeData, requestOfficeDeletion } from '../services/supabasePrivacy';
 
 export const Privacy = () => {
   const { office, user } = useAuth();

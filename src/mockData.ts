@@ -13,12 +13,16 @@ export const mockUser: User = {
 
 export const mockOffice: Office = {
   id: 'o1',
+  slug: 'silva-advogados-demo',
+  planCode: 'trial',
+  trialEndsAtMs: Date.now() + 12 * 24 * 60 * 60 * 1000,
   name: 'Silva & Advogados Associados',
   lawyerName: 'João Silva',
   oab: 'OAB/SP 123456',
   city: 'São Paulo',
   state: 'SP',
   whatsapp: '11999999999',
+  whatsappMessageTemplate: null,
   email: 'contato@silvaadvogados.com.br',
   areas: ['Direito Trabalhista', 'Direito de Família', 'Direito do Consumidor'],
   subscriptionStatus: 'TRIALING',

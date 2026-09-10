@@ -5,7 +5,7 @@ import { Topbar } from './Topbar';
 import { TrialBanner } from './TrialBanner';
 import { useAuth } from '../../context/AuthContext';
 import { LegalAcceptance } from '../LegalAcceptance';
-import { LEGAL_VERSION } from '../../lib/legal';
+import { LEGAL_VERSION } from '../../lib/legalVersion';
 
 export const Layout = () => {
   const { user, office, loading } = useAuth();
@@ -89,10 +89,11 @@ export const Layout = () => {
 
   if (loading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-slate-50">
+      <div className="flex h-screen w-full items-center justify-center bg-brand-950">
         <div className="flex flex-col items-center gap-4">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-brand-600"></div>
-          <p className="text-sm font-medium text-slate-500">Carregando...</p>
+          <img src="/branding/presenca-juridica-archetype-v2.png" alt="" className="h-16 w-16 object-contain" />
+          <div className="h-7 w-7 animate-spin rounded-full border-2 border-white/20 border-t-brand-gold"></div>
+          <p className="text-sm font-medium text-slate-400">Preparando sua operação...</p>
         </div>
       </div>
     );
@@ -122,7 +123,7 @@ export const Layout = () => {
   };
 
   return (
-    <div className="flex h-screen bg-[#F6F8FB] overflow-hidden font-sans">
+    <div className="flex h-screen overflow-hidden bg-[#f4f6fa] font-sans">
       {/* Desktop Sidebar */}
       <Sidebar collapsed={isSidebarCollapsed} />
 

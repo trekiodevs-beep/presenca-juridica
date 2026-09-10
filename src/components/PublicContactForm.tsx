@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { createPublicLead } from '../services/db';
+import { createPublicLead } from '../services/supabaseDb';
 import { PublicForm as PublicFormType } from '../types';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
 import { MessageSquare, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { formatPhoneForWhatsapp } from '../lib/utils';
+import { CityStateFields } from './CityStateFields';
 
 interface PublicContactFormProps {
   officeForm: PublicFormType;
@@ -156,16 +157,13 @@ export const PublicContactForm: React.FC<PublicContactFormProps> = ({ officeForm
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">Cidade *</label>
-            <Input required value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} placeholder="Sua cidade" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">UF *</label>
-            <Input required value={formData.state} onChange={e => setFormData({...formData, state: e.target.value.toUpperCase()})} maxLength={2} placeholder="SP" />
-          </div>
-        </div>
+        <CityStateFields
+          city={formData.city}
+          state={formData.state}
+          required
+          onCityChange={city => setFormData(current => ({ ...current, city }))}
+          onStateChange={state => setFormData(current => ({ ...current, state }))}
+        />
 
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1.5">Área Jurídica *</label>

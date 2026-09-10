@@ -105,6 +105,78 @@ export type Permission =
   | 'portal.write'
   | 'export.read';
 
+export type AlarmSourceType =
+  | 'LEAD'
+  | 'TASK'
+  | 'CALENDAR_EVENT'
+  | 'FINANCIAL_RECORD'
+  | 'CALENDAR_INTEGRATION'
+  | 'OFFICE'
+  | 'SUPPORT_REQUEST';
+
+export type AlarmSeverity = 'INFO' | 'WARNING' | 'CRITICAL';
+
+export type OperationalAlarmState = 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED' | 'CANCELED';
+
+export type AlarmRecipientReason = 'ASSIGNEE' | 'OWNER' | 'ADMIN' | 'FINANCE' | 'FALLBACK';
+
+export type OperationalAlarmEventType = 'CREATED' | 'ACKNOWLEDGED' | 'RESOLVED' | 'CANCELED' | 'REOPENED' | 'EVALUATED';
+
+export interface OperationalAlarm {
+  id: string;
+  officeId: string;
+  sourceType: AlarmSourceType;
+  sourceId?: string | null;
+  ruleCode: string;
+  cycleKey: string;
+  severity: AlarmSeverity;
+  state: OperationalAlarmState;
+  assignedUserId?: string | null;
+  title: string;
+  message: string;
+  actionPath?: string | null;
+  baseAt?: string | null;
+  dueAt?: string | null;
+  triggeredAt: string;
+  acknowledgedAt?: string | null;
+  acknowledgedBy?: string | null;
+  resolvedAt?: string | null;
+  resolvedBy?: string | null;
+  resolutionCode?: string | null;
+  resolvedAutomatically: boolean;
+  metadata: Record<string, unknown>;
+  ruleVersion: number;
+  version: number;
+  lastEvaluatedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OperationalAlarmRecipient {
+  alarmId: string;
+  officeId: string;
+  userId: string;
+  deliveryReason: AlarmRecipientReason;
+  readAt?: string | null;
+  snoozedUntil?: string | null;
+  dismissedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OperationalAlarmEvent {
+  id: string;
+  alarmId: string;
+  officeId: string;
+  eventType: OperationalAlarmEventType;
+  fromState?: OperationalAlarmState | null;
+  toState?: OperationalAlarmState | null;
+  actorUserId?: string | null;
+  reason?: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -129,6 +201,7 @@ export interface Office {
   city: string;
   state: string;
   whatsapp: string;
+  whatsappMessageTemplate?: string | null;
   email: string;
   areas: LegalArea[];
   slug?: string;
@@ -294,6 +367,9 @@ export interface LeadEvent {
   description: string;
   createdBy: string;
   createdAt: string;
+  fromStatus?: LeadStatus | null;
+  toStatus?: LeadStatus | null;
+  metadata?: Record<string, unknown>;
 }
 
 export interface Task {
@@ -305,6 +381,8 @@ export interface Task {
   done: boolean;
   createdAt: string;
   completedAt?: string;
+  responsibleUserId?: string | null;
+  createdBy?: string | null;
 }
 
 export interface LeadDocument {
@@ -336,6 +414,19 @@ export interface CalendarEvent {
   location?: string | null;
   notes?: string | null;
   responsibleUserId?: string | null;
+  externalProvider?: 'google' | null;
+  externalCalendarId?: string | null;
+  externalEventId?: string | null;
+  origin?: 'crm' | 'google' | 'linked';
+  syncStatus?: 'not_connected' | 'pending' | 'processing' | 'synced' | 'failed' | 'cancelled' | 'conflict' | 'deleted_external';
+  syncError?: string | null;
+  lastSyncedAt?: string | null;
+  googleEtag?: string | null;
+  googleUpdatedAt?: string | null;
+  lastLocalChangeAt?: string | null;
+  lastRemoteChangeAt?: string | null;
+  deletedAt?: string | null;
+  attendees?: Array<{ email: string; displayName?: string | null; responseStatus?: string | null }>;
   createdAt: string;
   updatedAt: string;
 }

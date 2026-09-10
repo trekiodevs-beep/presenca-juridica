@@ -124,11 +124,18 @@ export const getReturnStartedRate = (leads: Lead[], events: LeadEvent[]): number
   return Math.round((startedCount / leads.length) * 100);
 };
 
+export const formatSourceLabel = (source: string | null | undefined) => {
+  const value = source?.trim() || 'Sem origem';
+  if (/^SEED_(SUPER_)?DEMO_CENTRAL_ATENCAO$/i.test(value)) return 'Demonstração';
+  if (/^SEED_/i.test(value)) return 'Demonstração';
+  return value;
+};
+
 export const groupBySource = (leads: Lead[]) => {
   const result: Record<string, { total: number; triagePending: number; scheduled: number; contracted: number; noReturn: number }> = {};
   
   leads.forEach(l => {
-    const source = l.source || 'Sem origem';
+    const source = formatSourceLabel(l.source);
     if (!result[source]) {
       result[source] = { total: 0, triagePending: 0, scheduled: 0, contracted: 0, noReturn: 0 };
     }

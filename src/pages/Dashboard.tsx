@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { ShieldAlert, Users, Clock, CalendarCheck, AlertTriangle, ArrowRight, TrendingUp, Info, Activity, Hourglass, CheckCircle2, ChevronRight, FileText } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { StatusBadge } from '../components/ui/Badge';
@@ -297,20 +297,22 @@ export const Dashboard = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* 3. Evolução no Tempo */}
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="border-b border-slate-100">
-            <CardTitle className="text-base text-slate-900">Contatos recebidos no período</CardTitle>
+        <Card className="border-slate-200 shadow-sm overflow-hidden bg-gradient-to-br from-white to-blue-50/40">
+          <CardHeader className="border-b border-slate-100 flex-row items-start justify-between">
+            <div><CardTitle className="text-base text-slate-900">Ritmo de entrada</CardTitle><p className="text-xs text-slate-500 mt-1">Quando a demanda chega ao escritório</p></div>
+            <span className="text-xs font-semibold text-brand-700 bg-brand-50 px-2 py-1 rounded-full">{totalLeads} contatos</span>
           </CardHeader>
           <CardContent className="p-6 h-[300px]">
              {timelineData.length > 0 ? (
                <ResponsiveContainer width="100%" height="100%">
-                 <BarChart data={timelineData}>
+                 <AreaChart data={timelineData}>
+                   <defs><linearGradient id="contactsFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#2563eb" stopOpacity={0.28} /><stop offset="100%" stopColor="#2563eb" stopOpacity={0.02} /></linearGradient></defs>
                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                    <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
                    <YAxis tick={{ fontSize: 12, fill: '#64748b' }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
                    <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-                   <Bar dataKey="value" fill="#2b6cb0" radius={[4, 4, 0, 0]} />
-                 </BarChart>
+                   <Area type="monotone" dataKey="value" stroke="#2563eb" strokeWidth={3} fill="url(#contactsFill)" dot={{ r: 3, fill: '#2563eb', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 5 }} />
+                 </AreaChart>
                </ResponsiveContainer>
              ) : (
                <div className="flex flex-col h-full items-center justify-center text-sm text-slate-500 gap-3">
@@ -324,28 +326,12 @@ export const Dashboard = () => {
         </Card>
 
         {/* 4. Funil de Atendimento Inicial */}
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="border-b border-slate-100">
-            <CardTitle className="text-base text-slate-900 flex justify-between" title="Percentual de contatos que já avançaram além da etapa inicial.">
-              Situação dos contatos
-              <span className="text-sm font-normal text-slate-500">Avanço da triagem: {triageRate}%</span>
-            </CardTitle>
+        <Card className="border-slate-200 shadow-sm overflow-hidden">
+          <CardHeader className="border-b border-slate-100 flex-row items-start justify-between"><div><CardTitle className="text-base text-slate-900">Onde o funil trava</CardTitle><p className="text-xs text-slate-500 mt-1">Distribuição atual por etapa</p></div><span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">{triageRate}% triados</span>
           </CardHeader>
           <CardContent className="p-6 h-[300px]">
             {statusData.length > 0 ? (
-               <ResponsiveContainer width="100%" height="100%">
-                 <BarChart data={statusData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
-                   <XAxis type="number" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
-                   <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 11, fill: '#475569' }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
-                   <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-                   <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                     {statusData.map((entry, index) => (
-                       <Cell key={`cell-${index}`} fill={getStatusColor(entry.name)} />
-                     ))}
-                   </Bar>
-                 </BarChart>
-               </ResponsiveContainer>
+               <div className="h-full overflow-y-auto space-y-3 py-1">{statusData.map(entry => { const share = totalLeads ? Math.round(entry.value / totalLeads * 100) : 0; return <div key={entry.name}><div className="flex justify-between text-xs mb-1"><span className="font-medium text-slate-700">{entry.name}</span><span className="text-slate-500">{entry.value} · {share}%</span></div><div className="h-2 rounded-full bg-slate-100 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${Math.max(share, 4)}%`, backgroundColor: getStatusColor(entry.name) }} /></div></div>})}</div>
              ) : (
                <div className="flex flex-col h-full items-center justify-center text-sm text-slate-500 gap-3">
                  <p>Nenhum dado suficiente neste período.</p>
@@ -360,9 +346,9 @@ export const Dashboard = () => {
             <CardTitle className="text-base text-slate-900">Origem dos contatos</CardTitle>
             {mainSource && <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md font-medium">Principal: {mainSource.name}</span>}
           </CardHeader>
-          <CardContent className="p-0 flex-1 overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
+          <CardContent className="p-5 flex-1">
+            <div className="space-y-3"><table className="w-full text-sm text-left">
+              <thead className="hidden bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
                 <tr>
                   <th className="px-4 py-3 border-b border-slate-100">Origem do contato</th>
                   <th className="px-4 py-3 border-b border-slate-100 text-center">Contatos</th>
@@ -373,12 +359,7 @@ export const Dashboard = () => {
               <tbody className="divide-y divide-slate-100">
                 {sourceData.length > 0 ? (
                   sourceData.map((src, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/50">
-                      <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap">{src.name}</td>
-                      <td className="px-4 py-3 text-center text-slate-600">{src.total}</td>
-                      <td className="px-4 py-3 text-center text-amber-600 font-medium">{src.triagePending}</td>
-                      <td className="px-4 py-3 text-center text-slate-600">{src.noReturn}</td>
-                    </tr>
+                    <tr key={idx} className="hover:bg-slate-50/50"><td className="py-2 font-medium text-slate-800 whitespace-nowrap">{src.name}</td><td className="py-2 text-right text-sm font-bold text-slate-900">{src.total}<span className="ml-1 text-[10px] font-normal text-slate-400">contatos</span></td></tr>
                   ))
                 ) : (
                   <tr>
@@ -386,7 +367,7 @@ export const Dashboard = () => {
                   </tr>
                 )}
               </tbody>
-            </table>
+            </table></div>
             
             {utmData.length > 0 && (
               <div className="p-4 border-t border-slate-100 bg-slate-50/50">
@@ -421,8 +402,8 @@ export const Dashboard = () => {
             <CardTitle className="text-base text-slate-900">Áreas de atuação</CardTitle>
             {mainArea && <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md font-medium">Top: {mainArea.name}</span>}
           </CardHeader>
-          <CardContent className="p-0 flex-1 overflow-x-auto">
-            <table className="w-full text-sm text-left">
+          <CardContent className="p-5 flex-1">
+            <div className="space-y-3"><table className="w-full text-sm text-left">
               <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
                 <tr>
                   <th className="px-4 py-3 border-b border-slate-100">Área de atuação</th>
@@ -433,11 +414,7 @@ export const Dashboard = () => {
               <tbody className="divide-y divide-slate-100">
                 {areaData.length > 0 ? (
                   areaData.map((area, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/50">
-                      <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap truncate max-w-[200px]" title={area.name}>{area.name}</td>
-                      <td className="px-4 py-3 text-center text-slate-600">{area.total}</td>
-                      <td className="px-4 py-3 text-center text-brand-600 font-medium">{area.scheduled}</td>
-                    </tr>
+                    <tr key={idx} className="hover:bg-slate-50/50"><td className="py-2 font-medium text-slate-800 whitespace-nowrap truncate max-w-[200px]" title={area.name}>{area.name}</td><td className="py-2 text-right text-sm font-bold text-slate-900">{area.total}<span className="ml-1 text-[10px] font-normal text-slate-400">contatos</span></td></tr>
                   ))
                 ) : (
                   <tr>
@@ -445,7 +422,7 @@ export const Dashboard = () => {
                   </tr>
                 )}
               </tbody>
-            </table>
+            </table></div>
           </CardContent>
         </Card>
       </div>

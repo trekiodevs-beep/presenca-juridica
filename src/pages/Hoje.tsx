@@ -8,10 +8,12 @@ import { PageHeader } from '../components/layout/PageHeader';
 import { isToday, isPast, parseISO } from 'date-fns';
 import { formatDateTime } from '../lib/utils';
 import { Button } from '../components/ui/Button';
+import { useOperationalAlarms } from '../hooks/useOperationalAlarms';
 
 export const Hoje = () => {
   const { leads, loading, tasks, documents, calendarEvents, financialRecords } = useData();
   const { user, office } = useAuth();
+  const { active: activeAlarms, critical: criticalAlarms } = useOperationalAlarms();
 
   if (loading) {
     return (
@@ -31,6 +33,7 @@ export const Hoje = () => {
   const overdueTasks = tasks.filter(task => !task.done && isPast(parseISO(task.dueAt)) && !isToday(parseISO(task.dueAt))).length;
 
   const statCards = [
+    { title: 'Alertas ativos', value: activeAlarms.length, icon: AlertCircle, color: criticalAlarms ? 'text-red-600' : 'text-amber-600', bgColor: criticalAlarms ? 'bg-red-50' : 'bg-amber-50' },
     { title: 'Aguardando triagem', value: waitingTriage, icon: Clock, color: 'text-amber-600', bgColor: 'bg-amber-50' },
     { title: 'Providências vencidas', value: delayedActions + overdueTasks, icon: AlertCircle, color: 'text-red-600', bgColor: 'bg-red-50' },
     { title: 'Tarefas hoje', value: actionsToday + calendarToday + tasksToday, icon: ListChecks, color: 'text-emerald-600', bgColor: 'bg-emerald-50' },
@@ -77,7 +80,7 @@ export const Hoje = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {statCards.map((stat, idx) => (
           <Card key={idx} className="hover:shadow-md transition-shadow border-slate-200">
             <CardContent className="p-5 flex flex-col items-start gap-3">
@@ -95,6 +98,7 @@ export const Hoje = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="md:col-span-2">
+          {activeAlarms.length > 0 && <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4"><div className="flex items-center justify-between gap-3"><div><h2 className="text-sm font-bold text-amber-900">Central de atenção</h2><p className="text-xs text-amber-800 mt-1">{activeAlarms.length} pendência(s) persistente(s){criticalAlarms ? ` · ${criticalAlarms} crítica(s)` : ''}.</p></div><Link to="/alertas" className="text-xs font-semibold text-amber-900 underline">Abrir central</Link></div><div className="mt-3 space-y-1.5">{activeAlarms.slice(0, 3).map(({ alarm }) => <Link key={alarm.id} to={alarm.actionPath || '/alertas'} className="block truncate text-xs text-amber-900 hover:underline">• {alarm.title}</Link>)}</div></div>}
           <div className="mb-4">
             <h2 className="text-lg font-bold text-slate-900">Pontos de atenção de hoje</h2>
             <p className="text-sm text-slate-500">Contatos que precisam da sua atenção imediata.</p>
@@ -139,8 +143,8 @@ export const Hoje = () => {
             </div>
           ) : (
             <div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-12 text-center relative overflow-hidden h-[300px] flex flex-col justify-center">
-              <img 
-                src="/atom_simbolo_transparente_clean.png" 
+              <img
+                src="/branding/presenca-juridica-archetype-v2.png"
                 alt="" 
                 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 object-contain opacity-[0.03] pointer-events-none" 
                 onError={(e) => e.currentTarget.style.display = 'none'}

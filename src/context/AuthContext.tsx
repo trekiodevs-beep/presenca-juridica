@@ -1,11 +1,9 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, Office } from '../types';
 import { mockUser, mockOffice } from '../mockData';
-import { auth, googleProvider } from '../lib/firebase';
-import { signInWithPopup, signOut, onAuthStateChanged, getMultiFactorResolver, PhoneAuthProvider, PhoneMultiFactorGenerator, RecaptchaVerifier, type MultiFactorResolver } from 'firebase/auth';
-import { ensureOfficeTrial, getOrCreateUser, getOfficeById } from '../services/db';
-import { acceptLegalTerms, LEGAL_VERSION } from '../lib/legal';
-import { recordLoginEvent } from '../lib/audit';
+import { LEGAL_VERSION } from '../lib/legalVersion';
+import { isSupabaseConfigured } from '../lib/supabase';
+import { acceptSupabaseLegalTerms, getOrCreateSupabaseUser, getSupabaseOfficeById, getSupabaseSession, recordSupabaseLoginEvent, signInWithGoogle, signOutSupabase, subscribeSupabaseAuth } from '../services/supabaseAuth';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK_DATA === 'true';
 
@@ -28,8 +26,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [office, setOffice] = useState<Office | null>(null);
   const [loading, setLoading] = useState(true);
-  const [mfaResolver, setMfaResolver] = useState<MultiFactorResolver | null>(null);
-  const [mfaVerificationId, setMfaVerificationId] = useState('');
+  const [mfaChallengePending] = useState(false);
 
   useEffect(() => {
     if (USE_MOCK) {
@@ -39,36 +36,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      try {
-        if (firebaseUser) {
-          const userData = await getOrCreateUser({
-            id: firebaseUser.uid,
-            name: firebaseUser.displayName || '',
-            email: firebaseUser.email || '',
-          });
-          
-          setUser(userData);
-          recordLoginEvent().catch(error => console.error('Login audit failed:', error));
+    if (!isSupabaseConfigured) {
+      console.error('Supabase não está configurado: informe VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY.');
+      setLoading(false);
+      return;
+    }
 
-          if (userData?.officeId) {
-            const officeData = await getOfficeById(userData.officeId);
-            setOffice(officeData ? await ensureOfficeTrial(officeData) : null);
-          } else {
-            setOffice(null);
-          }
-        } else {
+    const syncSupabaseSession = async (session: import('@supabase/supabase-js').Session | null) => {
+      try {
+        if (!session?.user) {
           setUser(null);
           setOffice(null);
+          return;
         }
+        const userData = await getOrCreateSupabaseUser(session.user);
+        setUser(userData);
+        if (userData.officeId) recordSupabaseLoginEvent().catch(error => console.error('Login audit failed:', error));
+        setOffice(userData.officeId ? await getSupabaseOfficeById(userData.officeId) : null);
       } catch (error) {
-        console.error("Auth sync error:", error);
+        console.error('Supabase auth sync error:', error);
       } finally {
         setLoading(false);
       }
-    });
+    };
 
-    return () => unsubscribe();
+    getSupabaseSession().then(syncSupabaseSession).catch(error => {
+      console.error('Supabase session read failed:', error);
+      setLoading(false);
+    });
+    const subscription = subscribeSupabaseAuth((_event, session) => { void syncSupabaseSession(session); });
+    return () => subscription.unsubscribe();
   }, []);
 
   const login = async () => {
@@ -77,37 +74,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setOffice(mockOffice);
       return true;
     }
-    
-    try {
-      await signInWithPopup(auth, googleProvider);
-      return true;
-    } catch (error) {
-      if ((error as { code?: string }).code === 'auth/multi-factor-auth-required') {
-        const resolver = getMultiFactorResolver(auth, error as Parameters<typeof getMultiFactorResolver>[1]);
-        const hint = resolver.hints[0];
-        if (!hint) throw new Error('Nenhum segundo fator disponível.');
-        const verifier = new RecaptchaVerifier(auth, 'mfa-signin-recaptcha', { size: 'invisible' });
-        try {
-          const verificationId = await new PhoneAuthProvider(auth).verifyPhoneNumber({ multiFactorHint: hint, session: resolver.session }, verifier);
-          setMfaResolver(resolver);
-          setMfaVerificationId(verificationId);
-          return false;
-        } finally { verifier.clear(); }
-      }
-      console.error("Login failed:", error);
-      throw error;
-    }
+    if (!isSupabaseConfigured) throw new Error('Supabase não está configurado para este ambiente.');
+    await signInWithGoogle();
+    return true;
   };
 
-  const completeMfaLogin = async (code: string) => {
-    if (!mfaResolver || !mfaVerificationId) throw new Error('Desafio MFA não iniciado.');
-    const credential = PhoneAuthProvider.credential(mfaVerificationId, code.trim());
-    await mfaResolver.resolveSignIn(PhoneMultiFactorGenerator.assertion(credential));
-    setMfaResolver(null); setMfaVerificationId('');
+  const completeMfaLogin = async (_code: string) => {
+    throw new Error('MFA legado do Firebase não está disponível após a migração para Supabase.');
   };
 
   const acceptCurrentLegalTerms = async () => {
-    const result = await acceptLegalTerms();
+    const result = await acceptSupabaseLegalTerms(user?.id || '', LEGAL_VERSION);
     setUser(current => current ? { ...current, acceptedTermsVersion: LEGAL_VERSION, acceptedTermsAt: result.acceptedAt, acceptedPrivacyVersion: LEGAL_VERSION, acceptedPrivacyAt: result.acceptedAt } : current);
   };
 
@@ -117,19 +94,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setOffice(null);
       return;
     }
-    await signOut(auth);
+    await signOutSupabase();
   };
   
   const updateUserOfficeId = async (officeId: string) => {
     if (user && !USE_MOCK) {
       setUser({ ...user, officeId });
-      const officeData = await getOfficeById(officeId);
-      setOffice(officeData ? await ensureOfficeTrial(officeData) : null);
+      setOffice(await getSupabaseOfficeById(officeId));
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, office, loading, login, logout, updateUserOfficeId, setOffice, mfaChallengePending: Boolean(mfaResolver), completeMfaLogin, acceptCurrentLegalTerms }}>
+    <AuthContext.Provider value={{ user, office, loading, login, logout, updateUserOfficeId, setOffice, mfaChallengePending, completeMfaLogin, acceptCurrentLegalTerms }}>
       {children}
     </AuthContext.Provider>
   );

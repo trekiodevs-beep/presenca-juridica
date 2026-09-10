@@ -1,8 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { addDays, format, isSameDay, parseISO, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarDays, CheckCircle2, Clock, MapPin, Plus, UserRound } from 'lucide-react';
+import { AlertTriangle, CalendarDays, CheckCircle2, Clock, MapPin, Plus, RefreshCw, Trash2, UserRound } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -10,9 +10,11 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
-import { CalendarEventStatus, CalendarEventType } from '../types';
+import { CalendarEvent, CalendarEventStatus, CalendarEventType } from '../types';
 import { useToast } from '../context/ToastContext';
 import { cn } from '../lib/utils';
+import { supabase } from '../lib/supabase';
+import { resolveCalendarConflict, syncCalendarNow } from '../services/supabaseDb';
 
 const eventTypes: CalendarEventType[] = ['Consulta', 'Retorno', 'Prazo', 'Audiência', 'Reunião', 'Outro'];
 const eventStatuses: CalendarEventStatus[] = ['Agendado', 'Concluído', 'Cancelado'];
@@ -28,7 +30,7 @@ const typeStyle: Record<CalendarEventType, string> = {
 
 export const Agenda = () => {
   const { user } = useAuth();
-  const { leads, calendarEvents, addCalendarEvent, updateCalendarEvent } = useData();
+  const { leads, calendarEvents, addCalendarEvent, updateCalendarEvent, deleteCalendarEvent: removeCalendarEvent } = useData();
   const { showToast } = useToast();
   const [selectedDate, setSelectedDate] = useState(startOfDay(new Date()));
   const [title, setTitle] = useState('');
@@ -38,6 +40,36 @@ export const Agenda = () => {
   const [location, setLocation] = useState('');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState('');
+  const [connection, setConnection] = useState<{ calendar_name?: string | null; status?: string; last_sync_at?: string | null } | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editStartAt, setEditStartAt] = useState('');
+  const [editEndAt, setEditEndAt] = useState('');
+  const [editLocation, setEditLocation] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+
+  useEffect(() => {
+    void supabase.functions.invoke('calendar-connection-status', { method: 'GET' }).then(({ data }) => setConnection(data?.connection || null));
+  }, []);
+
+  const handleSync = async () => {
+    if (syncing) return;
+    setSyncing(true); setSyncMessage('');
+    try { const result = await syncCalendarNow(); setSyncMessage(`${result.queued} pendência(s) enfileirada(s). O worker concluirá o lote.`); }
+    catch (error) { console.error(error); setSyncMessage(error instanceof Error ? error.message : 'Não foi possível sincronizar.'); }
+    finally { setSyncing(false); }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Excluir este compromisso? O histórico será preservado e a exclusão será propagada quando aplicável.')) return;
+    try { await removeCalendarEvent(id); showToast('Compromisso excluído e colocado na fila de sincronização.', 'success'); }
+    catch (error) { console.error(error); showToast('Não foi possível excluir o compromisso.', 'error'); }
+  };
+
+  const startEditing = (event: CalendarEvent) => { setEditingId(event.id); setEditTitle(event.title); setEditStartAt(new Date(event.startAt).toISOString().slice(0, 16)); setEditEndAt(event.endAt ? new Date(event.endAt).toISOString().slice(0, 16) : ''); setEditLocation(event.location || ''); setEditNotes(event.notes || ''); };
+  const saveEditing = async () => { if (!editingId || !editTitle.trim() || !editStartAt) return; try { await updateCalendarEvent(editingId, { title: editTitle.trim(), startAt: new Date(editStartAt).toISOString(), endAt: editEndAt ? new Date(editEndAt).toISOString() : null, location: editLocation.trim() || null, notes: editNotes.trim() || null }); setEditingId(null); showToast('Compromisso atualizado.', 'success'); } catch { showToast('Não foi possível atualizar o compromisso.', 'error'); } };
 
   const weekDays = useMemo(() => {
     const today = startOfDay(new Date());
@@ -97,6 +129,13 @@ export const Agenda = () => {
         breadcrumbItems={[{ label: 'Agenda' }]}
       />
 
+      <Card className="border-slate-200">
+        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm"><p className="font-bold text-slate-900">Google Calendar</p><p className="text-slate-500">{connection?.status === 'active' ? `Agenda: ${connection.calendar_name || 'selecionada'}` : 'Conecte uma agenda em Configurações.'}{connection?.last_sync_at ? ` · última sincronização ${new Date(connection.last_sync_at).toLocaleString('pt-BR')}` : ''}</p>{syncMessage && <p className="mt-1 text-xs text-slate-600">{syncMessage}</p>}</div>
+          <Button type="button" variant="outline" onClick={handleSync} disabled={syncing || connection?.status !== 'active'}><RefreshCw className={cn('mr-2 h-4 w-4', syncing && 'animate-spin')} />{syncing ? 'Sincronizando...' : 'Sincronizar agora'}</Button>
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
         <div className="space-y-6">
           <Card className="border-slate-200 overflow-hidden">
@@ -150,13 +189,15 @@ export const Agenda = () => {
               {selectedDateEvents.length > 0 ? (
                 <div className="divide-y divide-slate-100">
                   {selectedDateEvents.map(event => (
-                    <div key={event.id} className="grid grid-cols-1 md:grid-cols-[92px_1fr_170px] gap-4 p-5">
+                    <React.Fragment key={event.id}><div className="grid grid-cols-1 md:grid-cols-[92px_1fr_170px] gap-4 p-5">
                       <div className="font-mono text-sm font-semibold text-slate-900">
                         {format(parseISO(event.startAt), 'HH:mm')}
-                      </div>
+                       </div>
                       <div className="min-w-0 border-l-4 border-brand-500 pl-4">
                         <div className="flex flex-wrap items-center gap-2">
                           <h4 className="font-bold text-slate-950">{event.title}</h4>
+                          {event.origin === 'google' && <span className="rounded-md bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-700">Criado no Google</span>}
+                          {event.syncStatus === 'conflict' && <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800"><AlertTriangle className="h-3 w-3" />Conflito</span>}
                           <span className={cn('rounded-md border px-2 py-0.5 text-xs font-semibold', typeStyle[event.type])}>
                             {event.type}
                           </span>
@@ -172,14 +213,9 @@ export const Agenda = () => {
                           </p>
                         )}
                       </div>
-                      <Select
-                        value={event.status}
-                        onChange={(changeEvent) => updateCalendarEvent(event.id, { status: changeEvent.target.value as CalendarEventStatus })}
-                        className="w-full"
-                      >
-                        {eventStatuses.map(status => <option key={status} value={status}>{status}</option>)}
-                      </Select>
-                    </div>
+                      <div className="space-y-2"><Select value={event.status} onChange={(changeEvent) => updateCalendarEvent(event.id, { status: changeEvent.target.value as CalendarEventStatus })} className="w-full">{eventStatuses.map(status => <option key={status} value={status}>{status}</option>)}</Select><div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={() => startEditing(event)}>Editar</Button><Button type="button" variant="outline" onClick={() => handleDelete(event.id)}><Trash2 className="mr-1 h-3.5 w-3.5" />Excluir</Button>{event.syncStatus === 'conflict' && <><Button type="button" variant="outline" onClick={async () => { try { await resolveCalendarConflict(event.id, 'crm'); showToast('Conflito enviado para prevalecer o CRM.', 'success'); } catch { showToast('Não foi possível resolver o conflito.', 'error'); } }}>Manter CRM</Button><Button type="button" variant="outline" onClick={async () => { try { await resolveCalendarConflict(event.id, 'google'); showToast('Conflito enviado para prevalecer o Google.', 'success'); } catch { showToast('Não foi possível resolver o conflito.', 'error'); } }}>Manter Google</Button><Button type="button" variant="outline" onClick={() => showToast('Revise os snapshots no histórico antes de escolher uma origem.', 'info')}>Revisar</Button></>}</div></div>
+                      </div>
+                      {editingId === event.id && <div className="md:col-span-3 grid grid-cols-1 gap-2 rounded-lg bg-slate-50 p-3 sm:grid-cols-2"><Input value={editTitle} onChange={e => setEditTitle(e.target.value)} aria-label="Título do compromisso" /><Input type="datetime-local" value={editStartAt} onChange={e => setEditStartAt(e.target.value)} aria-label="Início" /><Input type="datetime-local" value={editEndAt} onChange={e => setEditEndAt(e.target.value)} aria-label="Fim" /><Input value={editLocation} onChange={e => setEditLocation(e.target.value)} aria-label="Local" placeholder="Local/canal" /><Input value={editNotes} onChange={e => setEditNotes(e.target.value)} aria-label="Observações" placeholder="Observações" /><div className="flex gap-2"><Button type="button" onClick={saveEditing}>Salvar</Button><Button type="button" variant="outline" onClick={() => setEditingId(null)}>Cancelar</Button></div></div>}</React.Fragment>
                   ))}
                 </div>
               ) : (

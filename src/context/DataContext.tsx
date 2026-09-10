@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { CalendarEvent, ClientPortalAccess, DocumentCategory, FinancialRecord, Lead, LeadDocument, LeadEvent, Task } from '../types';
-import { mockLeads, mockEvents, mockTasks, mockDocuments, mockCalendarEvents, mockFinancialRecords, mockPortalAccesses } from '../mockData';
 import { useAuth } from './AuthContext';
 import {
   listenLeadsByOffice,
@@ -18,13 +17,15 @@ import {
   uploadLeadDocument as dbUploadLeadDocument,
   createCalendarEvent as dbCreateCalendarEvent,
   updateCalendarEvent as dbUpdateCalendarEvent,
+  deleteCalendarEvent as dbDeleteCalendarEvent,
   createFinancialRecord as dbCreateFinancialRecord,
   updateFinancialRecord as dbUpdateFinancialRecord,
   upsertClientPortalAccess as dbUpsertClientPortalAccess,
-} from '../services/db';
+} from '../services/supabaseDb';
 import { canWriteOffice } from '../lib/access';
 import { hasPermission } from '../lib/plans';
 import type { Permission } from '../types';
+import { readDemoData, saveDemoData, DEMO_CHANGED, DEMO_STORAGE_KEY } from '../lib/demoStore';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK_DATA === 'true';
 
@@ -45,6 +46,7 @@ interface DataContextType {
   uploadLeadDocument: (leadId: string, file: File, category: DocumentCategory, visibleInPortal: boolean) => Promise<string | undefined>;
   addCalendarEvent: (event: Omit<CalendarEvent, 'id' | 'createdAt' | 'updatedAt' | 'officeId'>) => Promise<string | undefined>;
   updateCalendarEvent: (id: string, updates: Partial<CalendarEvent>) => Promise<void>;
+  deleteCalendarEvent: (id: string) => Promise<void>;
   addFinancialRecord: (record: Omit<FinancialRecord, 'id' | 'createdAt' | 'updatedAt' | 'officeId'>) => Promise<string | undefined>;
   updateFinancialRecord: (id: string, updates: Partial<FinancialRecord>) => Promise<void>;
   upsertPortalAccess: (access: Omit<ClientPortalAccess, 'id' | 'createdAt' | 'updatedAt' | 'officeId'> & { id?: string }) => Promise<string | undefined>;
@@ -62,6 +64,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const [financialRecords, setFinancialRecords] = useState<FinancialRecord[]>([]);
   const [portalAccesses, setPortalAccesses] = useState<ClientPortalAccess[]>([]);
   const [loading, setLoading] = useState(true);
+  const [demoReady, setDemoReady] = useState(false);
+
+  useEffect(() => {
+    if (USE_MOCK && demoReady) saveDemoData({ leads, events, tasks, documents, calendarEvents, financialRecords, portalAccesses });
+  }, [demoReady, leads, events, tasks, documents, calendarEvents, financialRecords, portalAccesses]);
 
   const requirePermission = (permission: Permission) => {
     if (!office?.id) throw new Error('Nenhum escritório selecionado.');
@@ -76,15 +83,19 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   // Load data based on auth state
   useEffect(() => {
     if (USE_MOCK) {
-      setLeads(mockLeads);
-      setEvents(mockEvents);
-      setTasks(mockTasks);
-      setDocuments(mockDocuments);
-      setCalendarEvents(mockCalendarEvents);
-      setFinancialRecords(mockFinancialRecords);
-      setPortalAccesses(mockPortalAccesses);
+      const refresh = () => {
+        const data = readDemoData();
+        setLeads(data.leads); setEvents(data.events); setTasks(data.tasks);
+        setDocuments(data.documents); setCalendarEvents(data.calendarEvents);
+        setFinancialRecords(data.financialRecords); setPortalAccesses(data.portalAccesses);
+        setDemoReady(true);
+      };
+      refresh();
+      const storageChanged = (event: StorageEvent) => { if (event.key === DEMO_STORAGE_KEY) refresh(); };
+      window.addEventListener(DEMO_CHANGED, refresh);
+      window.addEventListener('storage', storageChanged);
       setLoading(false);
-      return;
+      return () => { window.removeEventListener(DEMO_CHANGED, refresh); window.removeEventListener('storage', storageChanged); };
     }
     
     if (!office?.id) {
@@ -215,6 +226,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       const taskId = `task${Date.now()}`;
       const newTask: Task = {
         ...taskData,
+        responsibleUserId: taskData.responsibleUserId || user?.id || null,
+        createdBy: taskData.createdBy || user?.id || null,
         id: taskId,
         officeId: 'o1',
         createdAt: now,
@@ -233,6 +246,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     const taskId = await dbCreateTask({
       ...taskData,
+      responsibleUserId: taskData.responsibleUserId || user?.id || null,
+      createdBy: taskData.createdBy || user?.id || null,
       officeId: office.id,
     });
     if (taskData.leadId) {
@@ -357,6 +372,15 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     await dbUpdateCalendarEvent(id, updates);
   };
 
+  const deleteCalendarEvent = async (id: string) => {
+    requirePermission('calendar.write');
+    if (USE_MOCK) {
+      setCalendarEvents(calendarEvents.map(event => event.id === id ? { ...event, status: 'Cancelado', syncStatus: 'cancelled', deletedAt: new Date().toISOString() } : event));
+      return;
+    }
+    await dbDeleteCalendarEvent(id);
+  };
+
   const addFinancialRecord = async (recordData: Omit<FinancialRecord, 'id' | 'createdAt' | 'updatedAt' | 'officeId'>) => {
     if (!office?.id) return;
     requirePermission('finance.write');
@@ -436,6 +460,16 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       ...accessData,
       officeId: office.id,
     });
+    const now = new Date().toISOString();
+    const existing = portalAccesses.find(access => access.id === accessId);
+    const savedAccess: ClientPortalAccess = {
+      ...accessData,
+      id: accessId,
+      officeId: office.id,
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+    };
+    setPortalAccesses(current => [savedAccess, ...current.filter(access => access.id !== accessId)]);
     await addEvent({
       leadId: accessData.leadId,
       type: 'portal_updated',
@@ -463,6 +497,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       uploadLeadDocument,
       addCalendarEvent,
       updateCalendarEvent,
+      deleteCalendarEvent,
       addFinancialRecord,
       updateFinancialRecord,
       upsertPortalAccess,

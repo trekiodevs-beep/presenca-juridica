@@ -1,13 +1,14 @@
 import React from 'react';
-import { Menu, Bell, Plus, Route as RouteIcon } from 'lucide-react';
+import { Menu, Plus, Route as RouteIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { AlarmBell } from '../alarms/AlarmBell';
 
 export const Topbar = ({ onToggleSidebar }: { onToggleSidebar?: () => void }) => {
   const { user, office } = useAuth();
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-6 lg:px-8 shrink-0 z-10">
+    <header className="relative z-10 flex h-16 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 shadow-[0_1px_0_rgba(242,199,120,.18)] sm:px-6 lg:px-8">
       <div className="flex items-center gap-4 min-w-0">
         <button 
           onClick={onToggleSidebar}
@@ -16,7 +17,8 @@ export const Topbar = ({ onToggleSidebar }: { onToggleSidebar?: () => void }) =>
         >
           <Menu className="w-5 h-5" />
         </button>
-        <div className="text-sm font-semibold text-slate-800 truncate">
+        <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-800 truncate">
+          <span aria-hidden="true" className="hidden h-1.5 w-1.5 shrink-0 rounded-full bg-brand-gold shadow-[0_0_8px_rgba(242,199,120,.75)] sm:block" />
           <span className="sm:hidden">
             {office?.name ? (office.name.length > 20 ? office.name.substring(0, 17) + '...' : office.name) : 'CRM'}
           </span>
@@ -46,16 +48,10 @@ export const Topbar = ({ onToggleSidebar }: { onToggleSidebar?: () => void }) =>
         {/* Divider */}
         <div className="hidden md:block h-6 w-px bg-slate-200"></div>
 
-        <button 
-          className="p-2 text-slate-400 hover:text-slate-500 relative rounded-full hover:bg-slate-50 cursor-pointer"
-          aria-label="Notificações"
-        >
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
-        </button>
+        <AlarmBell />
         
         <div className="flex items-center gap-2 sm:gap-3">
-          <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-sm shrink-0 border border-brand-200 shadow-sm">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-brand-gold/50 bg-[#e9efff] text-sm font-bold text-brand-700 shadow-sm">
             {user?.name.charAt(0).toUpperCase()}
           </div>
           <div className="hidden sm:block text-left">

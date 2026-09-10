@@ -35,6 +35,7 @@ const Legal = lazy(() => import('./pages/Legal').then(module => ({ default: modu
 const Support = lazy(() => import('./pages/Support').then(module => ({ default: module.Support })));
 const Status = lazy(() => import('./pages/Status').then(module => ({ default: module.Status })));
 const Security = lazy(() => import('./pages/Security').then(module => ({ default: module.Security })));
+const Alarms = lazy(() => import('./pages/Alarms').then(module => ({ default: module.Alarms })));
 
 export default function App() {
   return (
@@ -71,6 +72,7 @@ export default function App() {
                 <Route path="admin" element={<Admin />} />
                 <Route path="suporte" element={<Support />} />
                 <Route path="seguranca" element={<Security />} />
+                <Route path="alertas" element={<Alarms />} />
               </Route>
             </Routes>
             </Suspense>

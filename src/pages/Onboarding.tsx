@@ -8,8 +8,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { PageHeader } from '../components/layout/PageHeader';
 import { LeadSource, LeadStatus, Priority, LegalArea } from '../types';
-import { completeOnboarding } from '../lib/onboarding';
-import { getUsageCounter } from '../services/db';
+import { getUsageCounter, updateOffice } from '../services/supabaseDb';
 import type { UsageCounter } from '../types';
 
 export const Onboarding = () => {
@@ -64,7 +63,12 @@ export const Onboarding = () => {
   const progressPercent = (completedSteps / steps.length) * 100;
   const isAllDone = completedSteps === steps.length;
   useEffect(() => {
-    if (isAllDone && !office?.onboardingCompletedAt) completeOnboarding().then(result => office && setOffice({ ...office, onboardingCompletedAt: result.completedAt })).catch(console.error);
+    if (isAllDone && office?.id && !office.onboardingCompletedAt) {
+      const completedAt = new Date().toISOString();
+      updateOffice(office.id, { onboardingCompletedAt: completedAt })
+        .then(() => setOffice({ ...office, onboardingCompletedAt: completedAt }))
+        .catch(console.error);
+    }
   }, [isAllDone, office?.id, office?.onboardingCompletedAt]);
 
   const handleCopyLink = () => {

@@ -1,25 +1,17 @@
 # Backup e restauração
 
-## Política implementada
+## Estado atual
 
-- `backupTenantData` percorre até cinco escritórios a cada cinco minutos e mantém um cursor em `_system/backupCursor`.
-- Cada arquivo `backups/{officeId}/{AAAA-MM-DD}.json.gz` contém manifesto, banco de origem, documentos e SHA-256 do conteúdo sem compressão.
-- Ao concluir um ciclo, arquivos com mais de 30 dias são eliminados.
-- O backup inclui dados operacionais, cobrança, auditoria, privacidade e suporte. Usuários do Firebase Authentication não são recriados pelo arquivo.
+O fluxo de backup/restore Supabase ainda é um gate operacional pendente. Não tratar migrations, exportação manual ou build como backup validado.
 
-## Restauração controlada
+## Preparação obrigatória
 
-1. Baixe o objeto correto do bucket para uma estação administrativa isolada.
-2. Configure Application Default Credentials com acesso ao projeto e `FIRESTORE_DATABASE_ID` quando o backup não indicar o banco correto.
-3. Confira o `officeId` do manifesto.
-4. Execute:
+1. Definir política de retenção do Postgres e Storage.
+2. Habilitar backups do projeto Supabase.
+3. Registrar o procedimento de exportação e restauração em projeto separado.
+4. Validar restore com contagens, RLS, arquivos e integridade referencial.
+5. Registrar data, projeto, operador e evidências do ensaio.
 
-```powershell
-npm --prefix functions run restore:backup -- C:\backup\office.json.gz --confirm-office=OFFICE_ID
-```
+## Go/no-go
 
-O script usa `set(..., merge=true)` em lotes de 400 e não apaga dados que não estejam no arquivo. Faça o ensaio primeiro em projeto separado, valide contagens e integridade dos anexos e só depois autorize uma recuperação real.
-
-## Limites conhecidos
-
-O backup versiona metadados do documento; os binários permanecem no Cloud Storage e dependem da política de versionamento/retencão do bucket. Para clientes `custom` com volume excepcional, use exportação gerenciada do Firestore e replicação/versionamento do bucket como política contratual específica.
+Não liberar produção sem um restore real testado fora do projeto principal. O modo mock e os dados demonstrativos não fazem parte do backup.

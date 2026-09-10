@@ -3,12 +3,15 @@ import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
-import { createOffice, updateOffice as dbUpdateOffice, updatePublicForm } from '../services/db';
+import { updateOffice as dbUpdateOffice, updatePublicForm } from '../services/supabaseDb';
+import { createSupabaseOffice } from '../services/supabaseAuth';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, Building2, MessageSquare, ShieldAlert, Link as LinkIcon, Copy, ExternalLink, Globe, Clock } from 'lucide-react';
+import { CheckCircle2, Building2, MessageSquare, ShieldAlert, Link as LinkIcon, Copy, ExternalLink, Globe, Clock, Calendar } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { useToast } from '../context/ToastContext';
 import { getTrialState, TRIAL_DAYS } from '../lib/trial';
+import { supabase } from '../lib/supabase';
+import { DEFAULT_WHATSAPP_MESSAGE } from '../lib/whatsappMessage';
 
 const DEFAULT_AREAS = ['Direito de Família', 'Direito Trabalhista', 'Direito do Consumidor', 'Direito Empresarial'];
 
@@ -19,6 +22,9 @@ export const Settings = () => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [calendarConnection, setCalendarConnection] = useState<{ google_account_email: string | null; calendar_id: string | null; calendar_name: string | null; status: string; last_sync_at: string | null } | null>(null);
+  const [googleCalendars, setGoogleCalendars] = useState<Array<{ id: string; summary: string; primary: boolean }>>([]);
 
   const handleCopyText = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
@@ -33,12 +39,75 @@ export const Settings = () => {
     oab: '',
     email: '',
     whatsapp: '',
+    whatsappMessageTemplate: DEFAULT_WHATSAPP_MESSAGE,
     city: '',
     state: '',
     slug: ''
   });
 
   const trialState = getTrialState(office);
+
+  useEffect(() => {
+    const result = new URLSearchParams(window.location.search).get('calendar');
+    if (!result) return;
+    const messages: Record<string, [string, 'success' | 'error' | 'info']> = {
+      connected: ['Google Agenda conectada com sucesso.', 'success'],
+      error: ['Não foi possível conectar a Google Agenda.', 'error'],
+      not_configured: ['A integração Google Agenda ainda não está configurada no servidor.', 'error'],
+      invalid_state: ['A autorização expirou. Tente conectar novamente.', 'error'],
+      token_error: ['O Google não autorizou a conexão.', 'error'],
+    };
+    const message = messages[result];
+    if (message) showToast(message[0], message[1]);
+    window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.hash}`);
+  }, [showToast]);
+
+  const connectGoogleCalendar = async () => {
+    setCalendarLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('calendar-oauth-start', { body: {} });
+      if (error || !data?.authorizationUrl) {
+        const context = error?.context as { json?: () => Promise<{ missing?: string[] }> } | undefined;
+        const details = context?.json ? await context.json().catch(() => ({ missing: [] as string[] })) : { missing: [] as string[] };
+        const missing = Array.isArray(details.missing) ? ` Variáveis ausentes: ${details.missing.join(', ')}.` : '';
+        throw new Error(`${error?.message || 'URL de autorização ausente.'}${missing}`);
+      }
+      window.location.assign(String(data.authorizationUrl));
+    } catch (error) {
+      console.error(error);
+      showToast(error instanceof Error && error.message.includes('Variáveis ausentes') ? error.message : 'Não foi possível iniciar a conexão com o Google Calendar.', 'error');
+    } finally { setCalendarLoading(false); }
+  };
+
+  const loadGoogleCalendars = async () => {
+    setCalendarLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('calendar-list', { body: {} });
+      if (error) throw error;
+      setGoogleCalendars(data?.calendars || []);
+    } catch (error) { console.error(error); showToast('Não foi possível listar as agendas Google.', 'error'); }
+    finally { setCalendarLoading(false); }
+  };
+
+  const selectGoogleCalendar = async (calendarId: string) => {
+    const selected = googleCalendars.find(calendar => calendar.id === calendarId);
+    if (!selected) return;
+    const { data, error } = await supabase.functions.invoke('calendar-select', { body: { calendarId, calendarName: selected.summary } });
+    if (error) { console.error(error); showToast('Não foi possível selecionar a agenda.', 'error'); return; }
+    setCalendarConnection(current => current ? { ...current, ...data.connection } : current);
+    showToast('Agenda Google selecionada.', 'success');
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    void supabase.functions.invoke('calendar-connection-status', { method: 'GET' }).then(({ data, error }) => {
+      if (!cancelled && !error) {
+        setCalendarConnection(data?.connection || null);
+        if (data?.connection?.status === 'active') void loadGoogleCalendars();
+      }
+    });
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   useEffect(() => {
     if (office) {
@@ -48,6 +117,7 @@ export const Settings = () => {
         oab: office.oab || '',
         email: office.email || '',
         whatsapp: office.whatsapp || '',
+        whatsappMessageTemplate: office.whatsappMessageTemplate || DEFAULT_WHATSAPP_MESSAGE,
         city: office.city || '',
         state: office.state || '',
         slug: office.slug || ''
@@ -83,7 +153,7 @@ export const Settings = () => {
       const dataToSave = { ...formData, slug: finalSlug };
 
       if (!office) {
-        const newOfficeId = await createOffice({
+        const { id: newOfficeId } = await createSupabaseOffice({
           ...dataToSave,
           areas: DEFAULT_AREAS as any
         });
@@ -181,6 +251,22 @@ export const Settings = () => {
                   : `${TRIAL_DAYS} dias de teste`}
             </span>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-slate-200 shadow-sm overflow-hidden">
+        <CardHeader className="bg-slate-50 border-b border-slate-100 py-4">
+          <CardTitle className="text-base text-brand-900 flex items-center gap-2"><Calendar className="w-4 h-4 text-brand-700" />Integrações</CardTitle>
+        </CardHeader>
+        <CardContent className="p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div><p className="text-sm font-bold text-slate-900">Google Agenda</p><p className="mt-1 text-sm text-slate-500">{calendarConnection?.status === 'active' ? `Conectada${calendarConnection.google_account_email ? `: ${calendarConnection.google_account_email}` : ''}. Agenda: ${calendarConnection.calendar_name || 'não selecionada'}.` : 'Envie compromissos do CRM para uma agenda Google autorizada.'}</p></div>
+            <div className="flex flex-wrap gap-2">
+              {calendarConnection?.status === 'active' && <Button type="button" variant="outline" disabled={calendarLoading} onClick={loadGoogleCalendars}>{calendarLoading ? 'Carregando...' : 'Listar agendas'}</Button>}
+              <Button type="button" variant="outline" disabled={calendarLoading} onClick={connectGoogleCalendar}>{calendarLoading ? 'Conectando...' : calendarConnection?.status === 'active' ? 'Reconectar Google Agenda' : 'Conectar Google Agenda'}</Button>
+            </div>
+          </div>
+          {calendarConnection?.status === 'active' && googleCalendars.length > 0 && <div className="mt-4 max-w-xl"><label className="mb-1 block text-sm font-medium text-slate-700">Agenda de destino</label><select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" value={calendarConnection.calendar_id || ''} onChange={event => void selectGoogleCalendar(event.target.value)}><option value="">Selecione uma agenda</option>{googleCalendars.map(calendar => <option key={calendar.id} value={calendar.id}>{calendar.summary}{calendar.primary ? ' (principal)' : ''}</option>)}</select></div>}
         </CardContent>
       </Card>
 
@@ -341,27 +427,27 @@ export const Settings = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
-              <label className="block text-sm font-medium text-slate-700 mb-2">Mensagem Padrão de WhatsApp</label>
-              <p className="text-sm text-slate-500 mb-4">Esta é a mensagem inicial que o sistema gera para você contatar um novo contato. Ela usa uma linguagem humanizada, acolhedora e ética.</p>
+              <label htmlFor="whatsapp-message-template" className="block text-sm font-medium text-slate-700 mb-2">Mensagem padrão de WhatsApp</label>
+              <p className="text-sm text-slate-500 mb-4">Personalize a mensagem inicial usada ao abrir o WhatsApp de um novo contato. Use [Nome], [Origem] e [Área] para inserir os dados automaticamente.</p>
+              <textarea
+                id="whatsapp-message-template"
+                value={formData.whatsappMessageTemplate}
+                onChange={e => setFormData({ ...formData, whatsappMessageTemplate: e.target.value })}
+                rows={8}
+                maxLength={2000}
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-relaxed text-slate-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                aria-describedby="whatsapp-message-help"
+              />
+              <p id="whatsapp-message-help" className="mt-2 text-xs text-slate-500">A mensagem padrão já vem preenchida. Deixe em branco para restaurar o texto padrão. {formData.whatsappMessageTemplate.length}/2000</p>
               
               <div className="bg-[#EFEAE2] p-4 rounded-xl max-w-lg shadow-sm border border-slate-200 relative">
                 <div className="absolute top-0 right-0 w-4 h-4 bg-[#EFEAE2] rotate-45 -mr-2 mt-4 border-t border-r border-slate-200 hidden sm:block"></div>
-                <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
-                  "Olá, [Nome]. Tudo bem?
-                  
-                  Recebemos seu contato [Origem] sobre uma dúvida na área de [Área].
-                  
-                  Para organizar melhor o atendimento inicial, gostaria de confirmar algumas informações antes de encaminhar para análise da pessoa responsável.
-                  
-                  Você poderia me informar brevemente o contexto da sua dúvida?"
-                </p>
+                 <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">{formData.whatsappMessageTemplate || DEFAULT_WHATSAPP_MESSAGE}</p>
               </div>
 
               <div className="mt-4 flex items-start gap-2 text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100">
                  <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0 text-slate-400" />
-                 <p className="text-xs leading-relaxed">
-                   No momento, este texto é padronizado para garantir conformidade ética e clareza no primeiro contato.
-                 </p>
+                 <p className="text-xs leading-relaxed">Este texto será usado como base no retorno pelo WhatsApp. Revise a mensagem antes de enviar e mantenha uma abordagem compatível com a atuação do escritório.</p>
               </div>
             </CardContent>
           </Card>

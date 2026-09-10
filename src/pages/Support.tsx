@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { useToast } from '../context/ToastContext';
-import { submitSupportTicket } from '../lib/requests';
+import { submitSupportTicket } from '../services/supabaseRequests';
 
 export const Support = () => {
   const { showToast } = useToast();

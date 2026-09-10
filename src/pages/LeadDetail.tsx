@@ -11,11 +11,12 @@ import {
 } from 'lucide-react';
 import { Select } from '../components/ui/Select';
 import { CalendarEventType, DocumentCategory, FinancialRecordType, LeadStatus, PaymentMethod } from '../types';
-import { formatPhoneForDisplay, formatPhoneForWhatsapp, formatDateTime, humanizeSource } from '../lib/utils';
+import { formatPhoneForDisplay, formatPhoneForWhatsapp, formatDateTime } from '../lib/utils';
 import { PageHeader } from '../components/layout/PageHeader';
 import { useToast } from '../context/ToastContext';
 import { Input } from '../components/ui/Input';
-import { getDocumentDownloadUrl } from '../lib/documents';
+import { getDocumentDownloadUrl } from '../services/supabaseDb';
+import { buildWhatsappMessage } from '../lib/whatsappMessage';
 
 const documentCategories: DocumentCategory[] = ['Identificação', 'Contrato', 'Procuração', 'Comprovante', 'Peça processual', 'Outro'];
 const calendarTypes: CalendarEventType[] = ['Consulta', 'Retorno', 'Prazo', 'Audiência', 'Reunião', 'Outro'];
@@ -35,7 +36,7 @@ const formatBytes = (size: number) => {
 
 export const LeadDetail = () => {
   const { id } = useParams();
-  const { user } = useAuth();
+  const { user, office } = useAuth();
   const {
     leads,
     events,
@@ -291,8 +292,7 @@ export const LeadDetail = () => {
     }
   };
 
-  const formattedSource = humanizeSource(lead.source);
-  const whatsappMessage = `Olá, ${lead.name.split(' ')[0]}. Tudo bem?\n\nRecebemos sua solicitação ${formattedSource} sobre uma dúvida na área de ${lead.area}.\n\nPara organizar melhor o atendimento inicial, gostaria de confirmar algumas informações antes de encaminhar para análise da pessoa responsável.\n\nVocê poderia me informar brevemente o contexto da sua dúvida?`;
+  const whatsappMessage = buildWhatsappMessage(office, lead);
 
   const handleOpenWhatsapp = async () => {
     const waPhone = formatPhoneForWhatsapp(lead.phone);

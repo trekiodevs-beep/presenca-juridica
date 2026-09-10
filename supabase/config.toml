@@ -1,0 +1,92 @@
+project_id = "presenca-juridica-local"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+[realtime]
+enabled = true
+
+[studio]
+enabled = true
+port = 54323
+api_url = "http://127.0.0.1"
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3000"
+additional_redirect_urls = ["http://localhost:3000"]
+enable_refresh_token_rotation = true
+enable_signup = true
+
+[auth.external.google]
+enabled = true
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET)"
+skip_nonce_check = false
+
+[functions.portal-document-download]
+verify_jwt = false
+
+[functions.calendar-oauth-start]
+verify_jwt = true
+
+[functions.calendar-oauth-callback]
+verify_jwt = false
+
+[functions.calendar-connection-status]
+verify_jwt = true
+
+[functions.calendar-list]
+verify_jwt = true
+
+[functions.calendar-select]
+verify_jwt = true
+
+[functions.calendar-sync-worker]
+verify_jwt = false
+
+[functions.calendar-sync-now]
+verify_jwt = true
+
+[functions.calendar-reconcile]
+verify_jwt = false
+
+[functions.calendar-event-delete]
+verify_jwt = true
+
+[functions.calendar-conflict-resolve]
+verify_jwt = true
+
+[functions.calendar-webhook]
+verify_jwt = false
+
+[functions.alarm-evaluator]
+verify_jwt = false
+
+[functions.team-invitations]
+verify_jwt = true
+
+[functions.support-requests]
+verify_jwt = false
+
+[functions.privacy-controls]
+verify_jwt = true
+
+[functions.support-access]
+verify_jwt = true
+
+[functions.platform-admin]
+verify_jwt = true

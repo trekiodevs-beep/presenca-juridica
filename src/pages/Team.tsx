@@ -6,8 +6,8 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { inviteMember, listPendingInvitations, resendInvitation, revokeInvitation, setMemberStatus, transferOwnership } from '../lib/billing';
-import { listenMembershipsByOffice } from '../services/db';
+import { listenMembershipsByOffice } from '../services/supabaseDb';
+import { inviteMember, listPendingInvitations, resendInvitation, revokeInvitation, setMemberStatus, transferOwnership } from '../services/supabaseTeam';
 import type { Invitation, Membership, UserRole } from '../types';
 
 const roles: Array<{ value: UserRole; label: string }> = [

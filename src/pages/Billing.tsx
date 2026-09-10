@@ -7,8 +7,8 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { COMMERCIAL_PLANS, getPlan } from '../lib/plans';
 import { getAccessMode, subscriptionLabel } from '../lib/access';
-import { cancelSubscription, changePlan, createCheckout, getBillingSummary, updateBillingMethod, type BillingPayment } from '../lib/billing';
-import { getUsageCounter } from '../services/db';
+import { cancelSubscription, changePlan, createCheckout, getBillingSummary, updateBillingMethod, type BillingPayment } from '../services/supabaseBilling';
+import { getUsageCounter } from '../services/supabaseDb';
 import type { UsageCounter } from '../types';
 
 export const Billing = () => {

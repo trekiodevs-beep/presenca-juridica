@@ -43,23 +43,18 @@ Configuracao recomendada:
 Variaveis de ambiente/build:
 
 ```env
-VITE_FIREBASE_API_KEY=""
-VITE_FIREBASE_AUTH_DOMAIN=""
-VITE_FIREBASE_PROJECT_ID=""
-VITE_FIREBASE_STORAGE_BUCKET=""
-VITE_FIREBASE_MESSAGING_SENDER_ID=""
-VITE_FIREBASE_APP_ID=""
-VITE_FIREBASE_FIRESTORE_DATABASE_ID=""
-VITE_FIREBASE_APPCHECK_RECAPTCHA_KEY=""
+VITE_SUPABASE_URL="https://PROJECT_REF.supabase.co"
+VITE_SUPABASE_PUBLISHABLE_KEY=""
+VITE_BACKEND_PROVIDER="supabase"
 VITE_USE_MOCK_DATA="false"
 ```
 
 Observacoes:
 
 - As variaveis `VITE_*` sao lidas no build do Vite. No Coolify, configure-as antes do primeiro deploy.
-- Depois de associar o dominio no Coolify, adicione esse dominio em Firebase Auth > Authorized domains.
-- Publique `firestore.rules` e `storage.rules` no Firebase antes de liberar clientes reais.
-- O app usa o banco Firestore nomeado definido em `firebase-applet-config.json`. O navegador não acessa o Storage diretamente: uploads e downloads usam URLs assinadas curtas emitidas pelas Functions após validação no mesmo banco; `storage.rules` nega tudo por padrão.
+- Depois de associar o dominio no provedor, configure o domínio em Supabase Auth > URL Configuration.
+- Aplique as migrations, políticas RLS e configurações Storage do diretório `supabase/` antes de liberar clientes reais.
+- O app usa Supabase Auth, Postgres, Storage e Edge Functions. Chaves secretas ficam exclusivamente nas Functions; o frontend usa apenas a publishable key e o JWT da sessão.
 
 ## Camada SaaS
 
@@ -67,27 +62,26 @@ O repositório contém a primeira implementação comercial completa da camada S
 
 - planos `trial`, `essential`, `professional` e `custom`, com limites e permissões tipados;
 - estados de assinatura `TRIALING`, `ACTIVE`, `PAST_DUE`, `GRACE_PERIOD`, `SUSPENDED` e `CANCELED`;
-- bloqueio real de mutações no cliente e nas Firestore Rules quando o acesso é somente leitura;
+- bloqueio real de mutações no cliente e nas políticas RLS quando o acesso é somente leitura;
 - tela de Plano e cobrança, equipe, convite por token hash e aceitação vinculada ao e-mail autenticado;
 - Cloud Functions para checkout/troca/cancelamento, cobranças e 2ª via, webhook Asaas transacional, reconciliação, avisos de trial e limites atômicos de usuários, contatos e armazenamento;
-- auditoria de ações sensíveis e índices Firestore versionados.
+- auditoria de ações sensíveis, migrations SQL versionadas e Edge Functions.
 - MFA opcional, documentos legais/aceite versionado, solicitações LGPD, suporte com consentimento temporário e backup/restauração.
 
-### Publicação das Functions
+### Publicação das Edge Functions
 
-As Functions usam Node 22 e o banco indicado por `FIRESTORE_DATABASE_ID`. Antes de publicar:
+As Functions Supabase ficam em `supabase/functions`. Antes de publicar:
 
 ```bash
-cd functions
-npm install
-npm run build
+supabase db push
+supabase functions deploy calendar-oauth-start
+supabase functions deploy calendar-oauth-callback
+supabase functions deploy calendar-list
+supabase functions deploy calendar-select
+supabase functions deploy calendar-sync-worker --no-verify-jwt
 ```
 
-Configure no Firebase os segredos `ASAAS_API_KEY`, `ASAAS_WEBHOOK_TOKEN` e `RESEND_API_KEY`. Configure também `APP_URL`, `ASAAS_BASE_URL` (`https://api-sandbox.asaas.com/v3` em homologação) e `FIRESTORE_DATABASE_ID`. No frontend, configure `VITE_FIREBASE_APPCHECK_RECAPTCHA_KEY`; as callable Functions exigem App Check.
-
-Para uploads no navegador, substitua o domínio de exemplo em `storage.cors.example.json` e aplique o CORS no bucket. Não libere escrita em `storage.rules`.
-
-O webhook público deve apontar para `asaasWebhook` e usar o cabeçalho `asaas-access-token`. A criação de cobrança usa os preços presentes em `src/lib/plans.ts` como hipótese inicial de validação; eles devem ser confirmados antes do piloto.
+Configure os secrets no Supabase, incluindo `APP_URL`, credenciais OAuth Google, `CALENDAR_TOKEN_ENCRYPTION_KEY` e `CALENDAR_SYNC_WORKER_SECRET`. Nunca coloque refresh tokens ou service-role keys no frontend.
 
 ### Limites e dados existentes
 
@@ -101,8 +95,8 @@ Runbooks: [deploy de produção](docs/deploy-producao.md), [operação SaaS](doc
 
 - Build de producao concluido.
 - App publicado em dominio estavel.
-- Dominio autorizado no Firebase Auth.
-- Firestore e Storage validados fora do modo mock.
+- Domínio configurado no Supabase Auth.
+- Postgres, RLS e Storage validados fora do modo mock.
 - Criacao de escritorio validada.
 - Lead publico validado.
 - Upload de documento validado.

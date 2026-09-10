@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Copy, ExternalLink, FileText, KeyRound, LockKeyhole, RefreshCw, ShieldCheck } from 'lucide-react';
+import { CalendarDays, CheckCircle2, Copy, ExternalLink, FileText, KeyRound, LockKeyhole, MessageCircle, RefreshCw, ShieldCheck } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -7,6 +7,7 @@ import { Select } from '../components/ui/Select';
 import { Input } from '../components/ui/Input';
 import { useData } from '../context/DataContext';
 import { useToast } from '../context/ToastContext';
+import { formatPhoneForWhatsapp } from '../lib/utils';
 
 export const Portal = () => {
   const { leads, documents, calendarEvents, portalAccesses, upsertPortalAccess } = useData();
@@ -19,8 +20,17 @@ export const Portal = () => {
   const [pendingItemsText, setPendingItemsText] = useState(existingAccess?.pendingItems.join('\n') || '');
   const [isActive, setIsActive] = useState(existingAccess?.isActive ?? true);
   const [saving, setSaving] = useState(false);
+  const [savedAccessId, setSavedAccessId] = useState<string | null>(null);
 
-  const publicUrl = existingAccess ? `${window.location.origin}/portal/cliente/${existingAccess.id}` : '';
+  const accessId = existingAccess?.id || savedAccessId;
+  const publicUrl = accessId ? `${window.location.origin}/portal/cliente/${accessId}` : '';
+  const whatsappPhone = formatPhoneForWhatsapp(selectedLead?.phone);
+  const whatsappMessage = selectedLead && publicUrl
+    ? `Olá, ${selectedLead.name.split(' ')[0]}. Disponibilizamos seu portal de acompanhamento. Você pode acessar com segurança pelo link abaixo:\n\n${publicUrl}\n\nSe tiver alguma dúvida, estamos à disposição.`
+    : '';
+  const whatsappUrl = whatsappPhone && whatsappMessage
+    ? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(whatsappMessage)}`
+    : '';
   const pendingItems = pendingItemsText.split('\n').map(item => item.trim()).filter(Boolean);
 
   const releasedDocuments = useMemo(() => {
@@ -54,6 +64,7 @@ export const Portal = () => {
     const nextLead = leads.find(lead => lead.id === value);
     const nextAccess = portalAccesses.find(access => access.leadId === value);
     setLeadId(value);
+    setSavedAccessId(nextAccess?.id || null);
     setStatusLabel(nextAccess?.statusLabel || nextLead?.portalStatusLabel || 'Atendimento em andamento');
     setPublicNotes(nextAccess?.publicNotes || nextLead?.portalNotes || '');
     setPendingItemsText(nextAccess?.pendingItems.join('\n') || '');
@@ -71,7 +82,7 @@ export const Portal = () => {
 
     setSaving(true);
     try {
-      await upsertPortalAccess({
+      const savedId = await upsertPortalAccess({
         id: existingAccess?.id,
         leadId: selectedLead.id,
         clientName: selectedLead.name,
@@ -84,7 +95,9 @@ export const Portal = () => {
         isActive,
         expiresAt: null,
       });
-      showToast('Portal do cliente atualizado.', 'success');
+      if (!savedId) throw new Error('O portal foi salvo sem retornar um identificador de acesso.');
+      setSavedAccessId(savedId);
+      showToast('Portal atualizado. O link já está pronto para compartilhar.', 'success');
     } catch (error) {
       console.error(error);
       showToast('Erro ao atualizar portal do cliente.', 'error');
@@ -97,6 +110,14 @@ export const Portal = () => {
     if (!publicUrl) return;
     await navigator.clipboard.writeText(publicUrl);
     showToast('Link do portal copiado.', 'success');
+  };
+
+  const handleShareWhatsapp = () => {
+    if (!whatsappUrl) {
+      showToast('Cadastre um WhatsApp válido para este cliente antes de compartilhar.', 'error');
+      return;
+    }
+    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -174,36 +195,40 @@ export const Portal = () => {
 
             <Button onClick={handleSave} disabled={!selectedLead || saving} className="w-full gap-2">
               <RefreshCw className="w-4 h-4" />
-              {saving ? 'Atualizando...' : 'Atualizar portal'}
+              {saving ? 'Salvando e gerando link...' : existingAccess || savedAccessId ? 'Salvar alterações' : 'Salvar e gerar link'}
             </Button>
           </CardContent>
         </Card>
 
         <div className="space-y-6">
           <Card className="border-slate-200 overflow-hidden">
-            <div className="border-b border-slate-100 bg-white px-5 py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div className="border-b border-slate-100 bg-white px-5 py-4">
               <div>
                 <p className="text-xs font-semibold uppercase text-slate-500">Link de acesso</p>
                 <h2 className="text-base font-bold text-slate-950">Compartilhamento controlado</h2>
               </div>
-              {publicUrl && (
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Button variant="outline" onClick={handleCopyLink} className="gap-2">
-                    <Copy className="w-4 h-4" />
-                    Copiar link
-                  </Button>
-                  <Button asChild variant="outline" className="gap-2">
-                    <a href={publicUrl} target="_blank" rel="noreferrer">
-                      <ExternalLink className="w-4 h-4" />
-                      Abrir portal
-                    </a>
-                  </Button>
-                </div>
-              )}
             </div>
             <CardContent className="p-5">
               {publicUrl ? (
-                <Input readOnly value={publicUrl} className="font-mono text-xs bg-slate-50" />
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
+                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
+                    <div>
+                      <p className="text-sm font-bold">Link pronto para enviar</p>
+                      <p className="mt-1 text-xs text-emerald-800">O WhatsApp abrirá com uma mensagem pronta. Revise e confirme o envio.</p>
+                    </div>
+                  </div>
+                  <Input readOnly value={publicUrl} className="font-mono text-xs bg-slate-50" />
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <Button onClick={handleShareWhatsapp} disabled={!whatsappPhone || !isActive} className="gap-2 bg-[#128C7E] hover:bg-[#0f766e]">
+                      <MessageCircle className="h-4 w-4" /> Enviar no WhatsApp
+                    </Button>
+                    <Button variant="outline" onClick={handleCopyLink} className="gap-2"><Copy className="h-4 w-4" /> Copiar link</Button>
+                    <Button asChild variant="outline" className="gap-2"><a href={publicUrl} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" /> Abrir portal</a></Button>
+                  </div>
+                  {!whatsappPhone && <p className="text-xs text-amber-700">Este contato não possui um WhatsApp válido cadastrado. Ainda é possível copiar o link.</p>}
+                  {!isActive && <p className="text-xs text-amber-700">O portal está desativado. Ative-o e salve antes de compartilhar.</p>}
+                </div>
               ) : (
                 <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
                   <LockKeyhole className="mx-auto mb-3 h-7 w-7 text-slate-400" />

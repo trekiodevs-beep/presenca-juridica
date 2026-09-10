@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Building2, ShieldAlert } from 'lucide-react';
 
 import { PublicContactForm } from '../components/PublicContactForm';
-import { getPublicFormBySlug } from '../services/db';
+import { getPublicFormBySlug } from '../services/supabaseDb';
 import { PublicForm as PublicFormType } from '../types';
 
 export const PublicForm = () => {

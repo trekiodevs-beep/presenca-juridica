@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { getPublicFormBySlug } from '../services/db';
+import { getPublicFormBySlug } from '../services/supabaseDb';
 import { PublicForm as PublicFormType } from '../types';
 import { Building2, MessageSquare, ShieldAlert, MapPin, Scale, ChevronRight, Info } from 'lucide-react';
 import { PublicContactForm } from '../components/PublicContactForm';

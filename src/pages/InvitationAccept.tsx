@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
-import { acceptInvitation } from '../lib/billing';
+import { acceptInvitation } from '../services/supabaseTeam';
 
 export const InvitationAccept = () => {
   const { token } = useParams<{ token: string }>();

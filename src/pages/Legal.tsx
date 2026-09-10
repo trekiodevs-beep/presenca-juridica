@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { submitPrivacyRequest } from '../lib/requests';
+import { submitPrivacyRequest } from '../services/supabaseRequests';
 
 const VERSION = '1.0 — 6 de setembro de 2026';
 
