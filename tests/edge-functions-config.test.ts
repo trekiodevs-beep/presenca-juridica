@@ -78,3 +78,16 @@ test('Owner membership repair is scoped and office creation remains idempotent',
   assert.match(migration, /if existing_office\.id is not null then/);
   assert.doesNotMatch(migration, /update public\.memberships[\s\S]*where status = 'invited'/);
 });
+
+test('Calendar outbox is enqueued only after its parent event exists', () => {
+  const migration = readFileSync(
+    resolve(process.cwd(), 'supabase', 'migrations', '20260914000200_fix_calendar_sync_enqueue_order.sql'),
+    'utf8',
+  );
+
+  assert.match(migration, /create trigger calendar_events_prepare_sync\s+before insert or update/i);
+  assert.match(migration, /create trigger calendar_events_enqueue_sync\s+after insert or update/i);
+  assert.match(migration, /execute function public\.prepare_calendar_event_sync\(\)/);
+  assert.match(migration, /execute function public\.enqueue_calendar_sync\(\)/);
+  assert.doesNotMatch(migration, /create trigger calendar_events_enqueue_sync\s+before insert/i);
+});
