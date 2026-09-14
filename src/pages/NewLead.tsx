@@ -10,6 +10,7 @@ import { LeadSource, LegalArea, Priority } from '../types';
 import { cleanPhone, formatPhoneForDisplay, formatPhoneForWhatsapp } from '../lib/utils';
 import { PageHeader } from '../components/layout/PageHeader';
 import { useToast } from '../context/ToastContext';
+import { CityStateFields } from '../components/CityStateFields';
 
 export const NewLead = () => {
   const navigate = useNavigate();
@@ -164,13 +165,14 @@ export const NewLead = () => {
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">E-mail</label>
                 <Input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Cidade</label>
-                <Input value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">UF</label>
-                <Input value={formData.state} onChange={e => setFormData({...formData, state: e.target.value.toUpperCase()})} maxLength={2} placeholder="SP" />
+              <div className="sm:col-span-2">
+                <CityStateFields
+                  city={formData.city}
+                  state={formData.state}
+                  onCityChange={city => setFormData(current => ({ ...current, city }))}
+                  onStateChange={state => setFormData(current => ({ ...current, state }))}
+                  idPrefix="new-lead"
+                />
               </div>
             </div>
           </CardContent>

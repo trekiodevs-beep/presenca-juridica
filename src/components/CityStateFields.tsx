@@ -5,6 +5,13 @@ import { Input } from './ui/Input';
 interface Municipality {
   id: number;
   nome: string;
+  'regiao-imediata'?: {
+    'regiao-intermediaria'?: {
+      UF?: {
+        sigla: string;
+      };
+    };
+  };
   microrregiao?: {
     mesorregiao?: {
       UF?: {
@@ -20,9 +27,38 @@ interface CityStateFieldsProps {
   onCityChange: (city: string) => void;
   onStateChange: (state: string) => void;
   required?: boolean;
+  idPrefix?: string;
 }
 
 const IBGE_MUNICIPALITIES_URL = 'https://servicodados.ibge.gov.br/api/v1/localidades/municipios';
+let municipalitiesRequest: Promise<Municipality[]> | null = null;
+
+const normalizeSearch = (value: string) => value
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLocaleLowerCase('pt-BR');
+
+const getMunicipalityState = (municipality: Municipality) =>
+  municipality.microrregiao?.mesorregiao?.UF?.sigla
+  ?? municipality['regiao-imediata']?.['regiao-intermediaria']?.UF?.sigla;
+
+const loadMunicipalities = () => {
+  if (!municipalitiesRequest) {
+    municipalitiesRequest = fetch(IBGE_MUNICIPALITIES_URL, {
+      headers: { Accept: 'application/json' },
+    })
+      .then(response => {
+        if (!response.ok) throw new Error(`IBGE respondeu ${response.status}`);
+        return response.json() as Promise<Municipality[]>;
+      })
+      .catch(error => {
+        municipalitiesRequest = null;
+        throw error;
+      });
+  }
+
+  return municipalitiesRequest;
+};
 
 export const CityStateFields: React.FC<CityStateFieldsProps> = ({
   city,
@@ -30,6 +66,7 @@ export const CityStateFields: React.FC<CityStateFieldsProps> = ({
   onCityChange,
   onStateChange,
   required = false,
+  idPrefix = 'public',
 }) => {
   const [suggestions, setSuggestions] = useState<Municipality[]>([]);
   const [loading, setLoading] = useState(false);
@@ -44,26 +81,28 @@ export const CityStateFields: React.FC<CityStateFieldsProps> = ({
       return;
     }
 
-    const controller = new AbortController();
     const currentRequestId = ++requestId.current;
     const timeoutId = window.setTimeout(async () => {
       setLoading(true);
       try {
-        const response = await fetch(`${IBGE_MUNICIPALITIES_URL}?nome=${encodeURIComponent(normalizedCity)}`, {
-          signal: controller.signal,
-          headers: { Accept: 'application/json' },
-        });
-
-        if (!response.ok) throw new Error(`IBGE respondeu ${response.status}`);
-        const municipalities = (await response.json()) as Municipality[];
+        const municipalities = await loadMunicipalities();
         if (currentRequestId !== requestId.current) return;
 
-        setSuggestions(municipalities.slice(0, 8));
-        setIsOpen(municipalities.length > 0);
+        const search = normalizeSearch(normalizedCity);
+        const matchingMunicipalities = municipalities
+          .filter(municipality => normalizeSearch(municipality.nome).includes(search))
+          .sort((first, second) => {
+            const firstStartsWith = normalizeSearch(first.nome).startsWith(search);
+            const secondStartsWith = normalizeSearch(second.nome).startsWith(search);
+            if (firstStartsWith !== secondStartsWith) return firstStartsWith ? -1 : 1;
+            return first.nome.localeCompare(second.nome, 'pt-BR');
+          })
+          .slice(0, 8);
+
+        setSuggestions(matchingMunicipalities);
+        setIsOpen(matchingMunicipalities.length > 0);
       } catch (error) {
-        if ((error as DOMException).name !== 'AbortError') {
-          console.warn('Não foi possível buscar municípios no IBGE.', error);
-        }
+        console.warn('Não foi possível buscar municípios no IBGE.', error);
         if (currentRequestId === requestId.current) setSuggestions([]);
       } finally {
         if (currentRequestId === requestId.current) setLoading(false);
@@ -72,12 +111,12 @@ export const CityStateFields: React.FC<CityStateFieldsProps> = ({
 
     return () => {
       window.clearTimeout(timeoutId);
-      controller.abort();
+      requestId.current += 1;
     };
   }, [city]);
 
   const selectMunicipality = (municipality: Municipality) => {
-    const municipalityState = municipality.microrregiao?.mesorregiao?.UF?.sigla;
+    const municipalityState = getMunicipalityState(municipality);
     onCityChange(municipality.nome);
     if (municipalityState) onStateChange(municipalityState);
     setSuggestions([]);
@@ -85,12 +124,12 @@ export const CityStateFields: React.FC<CityStateFieldsProps> = ({
   };
 
   return (
-    <div className="grid grid-cols-2 gap-6">
+    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
       <div className="relative">
-        <label htmlFor="public-city" className="block text-sm font-medium text-slate-700 mb-1.5">Cidade {required ? '*' : ''}</label>
+        <label htmlFor={`${idPrefix}-city`} className="block text-sm font-medium text-slate-700 mb-1.5">Cidade {required ? '*' : ''}</label>
         <div className="relative">
           <Input
-            id="public-city"
+            id={`${idPrefix}-city`}
             required={required}
             value={city}
             onChange={event => {
@@ -103,14 +142,14 @@ export const CityStateFields: React.FC<CityStateFieldsProps> = ({
             autoComplete="address-level2"
             aria-autocomplete="list"
             aria-expanded={isOpen}
-            aria-controls="public-city-suggestions"
+            aria-controls={`${idPrefix}-city-suggestions`}
           />
           {loading && <LoaderCircle className="pointer-events-none absolute right-3 top-2.5 h-5 w-5 animate-spin text-slate-400" aria-label="Buscando cidades" />}
         </div>
         {isOpen && suggestions.length > 0 && (
-          <ul id="public-city-suggestions" role="listbox" className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+          <ul id={`${idPrefix}-city-suggestions`} role="listbox" className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
             {suggestions.map(municipality => {
-              const municipalityState = municipality.microrregiao?.mesorregiao?.UF?.sigla;
+              const municipalityState = getMunicipalityState(municipality);
               return (
                 <li key={municipality.id} role="option">
                   <button
@@ -129,9 +168,9 @@ export const CityStateFields: React.FC<CityStateFieldsProps> = ({
         )}
       </div>
       <div>
-        <label htmlFor="public-state" className="block text-sm font-medium text-slate-700 mb-1.5">UF {required ? '*' : ''}</label>
+        <label htmlFor={`${idPrefix}-state`} className="block text-sm font-medium text-slate-700 mb-1.5">UF {required ? '*' : ''}</label>
         <Input
-          id="public-state"
+          id={`${idPrefix}-state`}
           required={required}
           value={state}
           onChange={event => onStateChange(event.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2))}
