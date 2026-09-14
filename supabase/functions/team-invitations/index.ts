@@ -1,12 +1,18 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { handleCors, jsonWithCors } from '../_shared/cors.ts';
 
-const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { 'cache-control': 'no-store' } });
 const hashToken = async (token: string) => {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
   return Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, '0')).join('');
 };
 
 Deno.serve(async request => {
+  const corsResponse = handleCors(request);
+  if (corsResponse) return corsResponse;
+
+  const json = (body: unknown, status = 200) =>
+    jsonWithCors(request, body, status, { 'cache-control': 'no-store' });
+
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
   const authorization = request.headers.get('Authorization');
   const supabaseUrl = Deno.env.get('SUPABASE_URL');

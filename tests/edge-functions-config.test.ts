@@ -56,6 +56,16 @@ test('Calendar connection status distinguishes missing authentication from serve
   assert.ok(authenticationCheck < configurationCheck);
 });
 
+test('Team invitations answers preflight and applies CORS to every JSON response', () => {
+  const code = source('team-invitations/index.ts');
+
+  assert.match(code, /import \{ handleCors, jsonWithCors \} from '\.\.\/_shared\/cors\.ts'/);
+  assert.match(code, /const corsResponse = handleCors\(request\)/);
+  assert.match(code, /if \(corsResponse\) return corsResponse/);
+  assert.match(code, /jsonWithCors\(request, body, status/);
+  assert.doesNotMatch(code, /Response\.json/);
+});
+
 test('Owner membership repair is scoped and office creation remains idempotent', () => {
   const migration = readFileSync(
     resolve(process.cwd(), 'supabase', 'migrations', '20260914000100_repair_owner_memberships.sql'),
