@@ -55,3 +55,16 @@ test('Calendar connection status distinguishes missing authentication from serve
   assert.notEqual(configurationCheck, -1);
   assert.ok(authenticationCheck < configurationCheck);
 });
+
+test('Owner membership repair is scoped and office creation remains idempotent', () => {
+  const migration = readFileSync(
+    resolve(process.cwd(), 'supabase', 'migrations', '20260914000100_repair_owner_memberships.sql'),
+    'utf8',
+  );
+
+  assert.match(migration, /office\.owner_user_id/);
+  assert.match(migration, /on conflict \(office_id, user_id\) do update/);
+  assert.match(migration, /membership\.user_id = auth\.uid\(\) and membership\.status = 'active'/);
+  assert.match(migration, /if existing_office\.id is not null then/);
+  assert.doesNotMatch(migration, /update public\.memberships[\s\S]*where status = 'invited'/);
+});

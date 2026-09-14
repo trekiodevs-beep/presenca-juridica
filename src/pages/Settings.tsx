@@ -6,12 +6,13 @@ import { Button } from '../components/ui/Button';
 import { updateOffice as dbUpdateOffice, updatePublicForm } from '../services/supabaseDb';
 import { createSupabaseOffice } from '../services/supabaseAuth';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, Building2, MessageSquare, ShieldAlert, Link as LinkIcon, Copy, ExternalLink, Globe, Clock, Calendar } from 'lucide-react';
+import { CheckCircle2, Building2, MessageSquare, ShieldAlert, Link as LinkIcon, Copy, ExternalLink, Globe, Clock, Calendar, ArrowRight } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { useToast } from '../context/ToastContext';
 import { getTrialState, TRIAL_DAYS } from '../lib/trial';
 import { supabase } from '../lib/supabase';
 import { DEFAULT_WHATSAPP_MESSAGE } from '../lib/whatsappMessage';
+import { CityStateFields } from '../components/CityStateFields';
 
 const DEFAULT_AREAS = ['Direito de Família', 'Direito Trabalhista', 'Direito do Consumidor', 'Direito Empresarial'];
 
@@ -63,6 +64,10 @@ export const Settings = () => {
   }, [showToast]);
 
   const connectGoogleCalendar = async () => {
+    if (!office?.id) {
+      showToast('Crie o escritório antes de conectar a Google Agenda.', 'info');
+      return;
+    }
     setCalendarLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('calendar-oauth-start', { body: {} });
@@ -99,6 +104,10 @@ export const Settings = () => {
   };
 
   useEffect(() => {
+    if (!office?.id) {
+      setCalendarConnection(null);
+      return;
+    }
     let cancelled = false;
     void supabase.functions.invoke('calendar-connection-status', { method: 'GET' }).then(({ data, error }) => {
       if (!cancelled && !error) {
@@ -107,7 +116,7 @@ export const Settings = () => {
       }
     });
     return () => { cancelled = true; };
-  }, [user?.id]);
+  }, [user?.id, office?.id]);
 
   useEffect(() => {
     if (office) {
@@ -171,7 +180,7 @@ export const Settings = () => {
         });
 
         await updateUserOfficeId(newOfficeId);
-        navigate('/');
+        navigate('/onboarding');
       } else {
         await dbUpdateOffice(office.id, dataToSave);
         
@@ -203,8 +212,8 @@ export const Settings = () => {
   return (
     <div className="space-y-6 max-w-4xl mx-auto px-4 sm:px-6 pb-12">
       <PageHeader
-        title="Configurações"
-        description={office ? 'Personalize a identificação e mensagens do seu escritório.' : 'Para começar, preencha os dados básicos do seu escritório.'}
+        title={office ? 'Configurações' : 'Configure seu escritório'}
+        description={office ? 'Personalize a identificação e mensagens do seu escritório.' : 'Esta é a primeira etapa. Depois você poderá configurar canais, agenda e equipe.'}
         breadcrumbItems={[{ label: 'Configurações' }]}
       />
 
@@ -215,7 +224,27 @@ export const Settings = () => {
         </div>
       )}
 
-      <Card className="border-slate-200 shadow-sm overflow-hidden">
+      {!office && (
+        <div className="rounded-2xl border border-brand-200 bg-gradient-to-br from-brand-50 to-white p-5 sm:p-6">
+          <div className="flex items-start gap-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-700 text-sm font-bold text-white">1</div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-brand-700">Primeiro passo obrigatório</p>
+              <h2 className="mt-1 text-xl font-bold text-slate-950">Cadastre os dados básicos do escritório</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">A criação estabelece seu ambiente seguro e o vínculo de proprietário. As integrações serão liberadas na sequência.</p>
+              <div className="mt-4 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
+                <span className="rounded-full bg-brand-100 px-3 py-1.5 text-brand-800">1. Escritório</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+                <span className="rounded-full bg-white px-3 py-1.5 ring-1 ring-slate-200">2. Primeiros passos</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+                <span className="rounded-full bg-white px-3 py-1.5 ring-1 ring-slate-200">3. Integrações</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {office && <Card className="border-slate-200 shadow-sm overflow-hidden">
         <CardHeader className="bg-slate-50 border-b border-slate-100 py-4">
           <CardTitle className="text-base text-brand-900 flex items-center gap-2">
             <Clock className="w-4 h-4 text-brand-700" />
@@ -252,9 +281,9 @@ export const Settings = () => {
             </span>
           </div>
         </CardContent>
-      </Card>
+      </Card>}
 
-      <Card className="border-slate-200 shadow-sm overflow-hidden">
+      {office && <Card id="integrations" className="border-slate-200 shadow-sm overflow-hidden">
         <CardHeader className="bg-slate-50 border-b border-slate-100 py-4">
           <CardTitle className="text-base text-brand-900 flex items-center gap-2"><Calendar className="w-4 h-4 text-brand-700" />Integrações</CardTitle>
         </CardHeader>
@@ -268,7 +297,7 @@ export const Settings = () => {
           </div>
           {calendarConnection?.status === 'active' && googleCalendars.length > 0 && <div className="mt-4 max-w-xl"><label className="mb-1 block text-sm font-medium text-slate-700">Agenda de destino</label><select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" value={calendarConnection.calendar_id || ''} onChange={event => void selectGoogleCalendar(event.target.value)}><option value="">Selecione uma agenda</option>{googleCalendars.map(calendar => <option key={calendar.id} value={calendar.id}>{calendar.summary}{calendar.primary ? ' (principal)' : ''}</option>)}</select></div>}
         </CardContent>
-      </Card>
+      </Card>}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         
@@ -276,7 +305,7 @@ export const Settings = () => {
           <CardHeader className="bg-slate-50 border-b border-slate-100 py-4">
             <CardTitle className="text-base text-brand-900 flex items-center gap-2">
               <Building2 className="w-4 h-4 text-brand-700" />
-              Dados Principais
+              {office ? 'Dados principais' : 'Dados do escritório'}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6 space-y-6">
@@ -301,15 +330,14 @@ export const Settings = () => {
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">WhatsApp Principal</label>
                 <Input value={formData.whatsapp} onChange={e => setFormData({...formData, whatsapp: e.target.value})} placeholder="(00) 00000-0000" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Cidade</label>
-                  <Input value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">UF</label>
-                  <Input value={formData.state} onChange={e => setFormData({...formData, state: e.target.value.toUpperCase()})} maxLength={2} placeholder="SP" />
-                </div>
+              <div className="md:col-span-2">
+                <CityStateFields
+                  city={formData.city}
+                  state={formData.state}
+                  onCityChange={city => setFormData(current => ({ ...current, city }))}
+                  onStateChange={state => setFormData(current => ({ ...current, state }))}
+                  idPrefix="office-settings"
+                />
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Slug Público do Escritório</label>
@@ -453,9 +481,10 @@ export const Settings = () => {
           </Card>
         )}
         
-        <div className="flex justify-end pt-2">
+        <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end">
+          {!office && <p className="text-sm text-slate-500 sm:mr-auto">Você será levado aos próximos passos após criar o escritório.</p>}
           <Button type="submit" disabled={loading} className="px-8 bg-brand-700 hover:bg-brand-800 shadow-sm">
-            {loading ? 'Salvando...' : (office ? 'Salvar Perfil' : 'Criar Escritório')}
+            {loading ? 'Salvando...' : (office ? 'Salvar perfil' : 'Criar escritório e continuar')}
           </Button>
         </div>
       </form>

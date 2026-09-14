@@ -10,6 +10,7 @@ import { PageHeader } from '../components/layout/PageHeader';
 import { LeadSource, LeadStatus, Priority, LegalArea } from '../types';
 import { getUsageCounter, updateOffice } from '../services/supabaseDb';
 import type { UsageCounter } from '../types';
+import { supabase } from '../lib/supabase';
 
 export const Onboarding = () => {
   const { office, user, setOffice } = useAuth();
@@ -17,7 +18,16 @@ export const Onboarding = () => {
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [usage, setUsage] = useState<UsageCounter | null>(null);
+  const [isCalendarConnected, setIsCalendarConnected] = useState(false);
   useEffect(() => { if (office?.id) getUsageCounter(office.id).then(setUsage).catch(console.error); }, [office?.id]);
+  useEffect(() => {
+    if (!office?.id) return;
+    let cancelled = false;
+    void supabase.functions.invoke('calendar-connection-status', { method: 'GET' }).then(({ data, error }) => {
+      if (!cancelled && !error) setIsCalendarConnected(data?.connection?.status === 'active');
+    });
+    return () => { cancelled = true; };
+  }, [office?.id]);
 
   // 1. Profile Complete
   const isProfileComplete = Boolean(
@@ -53,6 +63,7 @@ export const Onboarding = () => {
     { completed: isTeamConfigured },
     { completed: isTestContactCreated },
     { completed: hasTask },
+    { completed: isCalendarConnected },
     { completed: hasCalendarEvent },
     { completed: hasPortal },
     { completed: isTodayValidated },
@@ -240,6 +251,8 @@ export const Onboarding = () => {
         </StepCard>
 
         <StepCard title="Crie a primeira tarefa" description="Registre a próxima providência para que o atendimento não dependa de memória." isCompleted={hasTask}><Button asChild variant="outline"><Link to="/tarefas">Ir para tarefas</Link></Button></StepCard>
+
+        <StepCard title="Conecte a Google Agenda" description="Depois que o escritório estiver criado, autorize a agenda que receberá os compromissos do CRM." isCompleted={isCalendarConnected}><Button asChild variant="outline"><Link to="/settings#integrations">Configurar Google Agenda</Link></Button></StepCard>
 
         <StepCard title="Registre um compromisso" description="Inclua uma consulta, retorno ou prazo na agenda do escritório." isCompleted={hasCalendarEvent}><Button asChild variant="outline"><Link to="/agenda">Ir para agenda</Link></Button></StepCard>
 
