@@ -6,7 +6,7 @@ const eventPayload = (event: Record<string, any>) => ({ summary: String(event.ti
 const google = (token: string, path: string, init: RequestInit = {}) => fetch(`https://www.googleapis.com/calendar/v3${path}`, { ...init, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', ...(init.headers || {}) } });
 Deno.serve(async request => {
   if (request.method !== 'POST' || request.headers.get('x-calendar-worker-secret') !== Deno.env.get('CALENDAR_SYNC_WORKER_SECRET')) return json({ error: 'Não autorizado.' }, 401);
-  const url = Deno.env.get('SUPABASE_URL'); const service = Deno.env.get('BACKEND_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SECRET_KEY'); const encryption = Deno.env.get('CALENDAR_TOKEN_ENCRYPTION_KEY');
+  const url = Deno.env.get('SUPABASE_URL'); const service = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SECRET_KEY') || Deno.env.get('BACKEND_SERVICE_ROLE_KEY'); const encryption = Deno.env.get('CALENDAR_TOKEN_ENCRYPTION_KEY');
   if (!url || !service || !encryption) return json({ error: 'Configuração incompleta.' }, 500);
   const admin = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } }); const claimed = await admin.rpc('claim_calendar_sync_outbox', { batch_size: 25 });
   if (claimed.error) return json({ error: 'Não foi possível reservar a fila.' }, 500); let completed = 0; let failed = 0;

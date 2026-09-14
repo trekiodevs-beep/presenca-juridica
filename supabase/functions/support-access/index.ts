@@ -4,7 +4,7 @@ const json = (body: unknown, status = 200) => Response.json(body, { status, head
 Deno.serve(async request => {
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
   const authorization = request.headers.get('Authorization');
-  const url = Deno.env.get('SUPABASE_URL'); const anon = Deno.env.get('SUPABASE_ANON_KEY'); const secret = Deno.env.get('BACKEND_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SECRET_KEY');
+  const url = Deno.env.get('SUPABASE_URL'); const anon = Deno.env.get('SUPABASE_ANON_KEY'); const secret = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SECRET_KEY') || Deno.env.get('BACKEND_SERVICE_ROLE_KEY');
   if (!authorization || !url || !anon || !secret) return json({ error: 'Configuração incompleta.' }, 500);
   const userClient = createClient(url, anon, { global: { headers: { Authorization: authorization } } });
   const { data: authData, error: authError } = await userClient.auth.getUser();
