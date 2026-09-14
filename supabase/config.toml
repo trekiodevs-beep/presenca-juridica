@@ -41,34 +41,34 @@ skip_nonce_check = false
 verify_jwt = false
 
 [functions.calendar-oauth-start]
-verify_jwt = true
+verify_jwt = false
 
 [functions.calendar-oauth-callback]
 verify_jwt = false
 
 [functions.calendar-connection-status]
-verify_jwt = true
+verify_jwt = false
 
 [functions.calendar-list]
-verify_jwt = true
+verify_jwt = false
 
 [functions.calendar-select]
-verify_jwt = true
+verify_jwt = false
 
 [functions.calendar-sync-worker]
 verify_jwt = false
 
 [functions.calendar-sync-now]
-verify_jwt = true
+verify_jwt = false
 
 [functions.calendar-reconcile]
 verify_jwt = false
 
 [functions.calendar-event-delete]
-verify_jwt = true
+verify_jwt = false
 
 [functions.calendar-conflict-resolve]
-verify_jwt = true
+verify_jwt = false
 
 [functions.calendar-webhook]
 verify_jwt = false

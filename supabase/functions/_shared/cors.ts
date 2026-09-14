@@ -17,7 +17,7 @@ export const getCorsHeaders = (request: Request): Record<string, string> => {
 
 export const handleCors = (request: Request): Response | null => {
   if (request.method !== 'OPTIONS') return null;
-  return new Response('ok', { status: 204, headers: getCorsHeaders(request) });
+  return new Response(null, { status: 204, headers: getCorsHeaders(request) });
 };
 
 export const jsonWithCors = (request: Request, body: unknown, status = 200, extraHeaders: Record<string, string> = {}) =>
