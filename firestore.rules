@@ -9,7 +9,11 @@ service cloud.firestore {
     function currentUser() { return get(userPath(request.auth.uid)).data; }
     function officeUserId() { return currentUserExists() ? currentUser().officeId : ''; }
     function role() { return currentUserExists() ? currentUser().role : ''; }
-    function activeMembership(officeId) { return !exists(/databases/$(database)/documents/memberships/$(officeId)_$(request.auth.uid)) || get(/databases/$(database)/documents/memberships/$(officeId)_$(request.auth.uid)).data.status == 'active'; }
+    function activeMembership(officeId) {
+      let membershipId = officeId + '_' + request.auth.uid;
+      let membership = /databases/$(database)/documents/memberships/$(membershipId);
+      return !exists(membership) || get(membership).data.status == 'active';
+    }
     function sameOffice(officeId) { return currentUserExists() && officeUserId() != '' && officeUserId() == officeId && activeMembership(officeId); }
     function manager() { return role() in ['owner', 'admin']; }
     function operator() { return role() in ['owner', 'admin', 'lawyer', 'assistant']; }
