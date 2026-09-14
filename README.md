@@ -37,8 +37,8 @@ Configuracao recomendada:
 - Repository: `trekiodevs-beep/presenca-juridica`
 - Branch: `codex/saas-production-readiness` para homologação; `main` após merge aprovado
 - Build Pack: `Dockerfile`
-- Port: `80`
-- Healthcheck path: `/`
+- Port: `8080`
+- Healthcheck path: `/healthz`
 
 Variaveis de ambiente/build:
 
@@ -46,12 +46,26 @@ Variaveis de ambiente/build:
 VITE_SUPABASE_URL="https://PROJECT_REF.supabase.co"
 VITE_SUPABASE_PUBLISHABLE_KEY=""
 VITE_BACKEND_PROVIDER="supabase"
+VITE_PUBLIC_APP_URL="https://crm.example.com"
 VITE_USE_MOCK_DATA="false"
 ```
 
+Use [.env.docker.example](.env.docker.example) como referência exclusiva das variáveis públicas do build no Coolify. Os secrets das Edge Functions são configurados separadamente no Supabase.
+
+Para validar o mesmo pacote localmente antes do Coolify:
+
+```powershell
+Copy-Item .env.docker.example .env.docker
+docker compose --env-file .env.docker -f docker/compose.yml up --build -d
+docker compose --env-file .env.docker -f docker/compose.yml ps
+```
+
+O Compose publica o frontend em `http://localhost:8080`; o Supabase continua externo ao container.
+
 Observacoes:
 
-- As variaveis `VITE_*` sao lidas no build do Vite. No Coolify, configure-as antes do primeiro deploy.
+- As variaveis `VITE_*` sao lidas no build do Vite. No Coolify, configure-as como build arguments antes do primeiro deploy.
+- O container serve a SPA pelo Nginx na porta `8080` e expõe `/healthz` para o healthcheck do Coolify.
 - Depois de associar o dominio no provedor, configure o domínio em Supabase Auth > URL Configuration.
 - Aplique as migrations, políticas RLS e configurações Storage do diretório `supabase/` antes de liberar clientes reais.
 - O app usa Supabase Auth, Postgres, Storage e Edge Functions. Chaves secretas ficam exclusivamente nas Functions; o frontend usa apenas a publishable key e o JWT da sessão.

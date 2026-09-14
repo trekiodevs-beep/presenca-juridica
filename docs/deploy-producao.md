@@ -11,6 +11,8 @@ Este runbook corresponde à arquitetura Supabase + Vite. Build, migration, deplo
 
 ## 2. Variáveis públicas do frontend
 
+No Coolify, use `.env.docker.example` como referência. Essas variáveis são build-time e não devem ser confundidas com os secrets das Edge Functions.
+
 ```env
 VITE_SUPABASE_URL="https://PROJECT_REF.supabase.co"
 VITE_SUPABASE_PUBLISHABLE_KEY="..."
@@ -90,13 +92,16 @@ Configure Auth URLs, redirects, Storage policies e Realtime no painel. Confirme 
 
 ## 7. Deploy do frontend
 
+O Coolify pode apontar diretamente para o `Dockerfile` da raiz. O `docker/compose.yml` existe para reproduzir localmente o mesmo build e não sobe o Supabase; ele serve apenas o frontend.
+
 - branch: `main` após CI verde;
 - build: `npm ci && npm run build`;
 - saída: `dist`;
 - fallback SPA para `index.html`;
+- container Docker: Nginx na porta `8080`, healthcheck em `/healthz`;
 - HTTPS obrigatório;
-- variáveis: somente as quatro `VITE_*` do item 2;
-- healthcheck: `/` com HTTP 200.
+- variáveis públicas de build: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_BACKEND_PROVIDER`, `VITE_PUBLIC_APP_URL` e `VITE_USE_MOCK_DATA=false`;
+- healthcheck: `/healthz` com HTTP 200.
 
 ## 8. Homologação obrigatória
 
