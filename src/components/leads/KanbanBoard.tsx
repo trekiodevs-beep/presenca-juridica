@@ -6,6 +6,7 @@ import { ChevronRight, MessageSquare, GripVertical } from 'lucide-react';
 import { StatusBadge, PriorityBadge } from '../ui/Badge';
 import { formatPhoneForDisplay, formatPhoneForWhatsapp, formatDateTime } from '../../lib/utils';
 import { cn } from '../../lib/utils';
+import { useToast } from '../../context/ToastContext';
 
 interface KanbanBoardProps {
   leads: Lead[];
@@ -25,6 +26,7 @@ const COLUMNS = [
 
 export const KanbanBoard = ({ leads }: KanbanBoardProps) => {
   const { updateLead } = useData();
+  const { showToast } = useToast();
   const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
 
@@ -47,6 +49,18 @@ export const KanbanBoard = ({ leads }: KanbanBoardProps) => {
     setDragOverColumn(null);
   };
 
+  const moveLead = async (id: string, status: Lead['status']) => {
+    const lead = leads.find(item => item.id === id);
+    if (!lead || lead.status === status) return;
+    try {
+      await updateLead(id, { status });
+      showToast(`${lead.name} movido para ${status}.`, 'success');
+    } catch (error) {
+      console.error(error);
+      showToast(`Não foi possível mover ${lead.name}. A situação anterior foi restaurada.`, 'error', { durationMs: null });
+    }
+  };
+
   const handleDrop = async (e: React.DragEvent, status: string) => {
     e.preventDefault();
     setDragOverColumn(null);
@@ -55,11 +69,7 @@ export const KanbanBoard = ({ leads }: KanbanBoardProps) => {
     
     setDraggedLeadId(null);
     
-    const lead = leads.find(l => l.id === id);
-    if (lead && lead.status !== status) {
-      // Optmistic update happens naturally if we trigger the update
-      await updateLead(id, { status: status as Lead['status'] });
-    }
+    await moveLead(id, status as Lead['status']);
   };
 
   return (
@@ -101,6 +111,19 @@ export const KanbanBoard = ({ leads }: KanbanBoardProps) => {
                   <div className="absolute top-2 right-2 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity">
                     <GripVertical className="w-4 h-4" />
                   </div>
+
+                  <label className="mt-3 block text-[11px] font-medium text-slate-500">
+                    Mover situação
+                    <select
+                      aria-label={`Mover ${lead.name} para outra situação`}
+                      value={lead.status}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => void moveLead(lead.id, e.target.value as Lead['status'])}
+                      className="mt-1 h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700"
+                    >
+                      {COLUMNS.map(option => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </label>
                   
                   <div className="flex justify-between items-start mb-2 pr-5">
                     <PriorityBadge priority={lead.priority} />
@@ -133,7 +156,7 @@ export const KanbanBoard = ({ leads }: KanbanBoardProps) => {
                           if (waPhone) {
                             window.open(`https://wa.me/${waPhone}`, '_blank');
                           } else {
-                            alert('Telefone inválido ou não informado.');
+                            showToast('Telefone inválido ou não informado.', 'error');
                           }
                         }}
                         title="Conversar no WhatsApp"

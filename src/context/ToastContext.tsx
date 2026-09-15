@@ -8,10 +8,11 @@ export interface Toast {
   id: string;
   message: string;
   type: ToastType;
+  durationMs: number | null;
 }
 
 interface ToastContextType {
-  showToast: (message: string, type?: ToastType) => void;
+  showToast: (message: string, type?: ToastType, options?: { durationMs?: number | null }) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -19,14 +20,16 @@ const ToastContext = createContext<ToastContextType | undefined>(undefined);
 export const ToastProvider = ({ children }: { children: ReactNode }) => {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const showToast = useCallback((message: string, type: ToastType = 'success') => {
-    const id = Math.random().toString(36).substring(2, 9);
-    setToasts((prev) => [...prev, { id, message, type }]);
+  const showToast = useCallback((message: string, type: ToastType = 'success', options?: { durationMs?: number | null }) => {
+    const id = crypto.randomUUID();
+    const durationMs = options?.durationMs ?? (type === 'error' ? 6000 : type === 'info' ? 4500 : 3500);
+    setToasts((prev) => [...prev.slice(-3), { id, message, type, durationMs }]);
 
-    // Auto remove after 3 seconds
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3000);
+    if (durationMs !== null) {
+      window.setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+      }, durationMs);
+    }
   }, []);
 
   const removeToast = (id: string) => {
@@ -47,6 +50,8 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
               initial={{ opacity: 0, y: 50, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -20, scale: 0.9, transition: { duration: 0.2 } }}
+              role={toast.type === 'error' ? 'alert' : 'status'}
+              aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
               className="pointer-events-auto w-full bg-white rounded-xl shadow-lg border border-slate-100 p-4 flex items-start gap-3 overflow-hidden"
             >
               {/* Icon based on type */}

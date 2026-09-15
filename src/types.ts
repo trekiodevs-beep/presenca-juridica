@@ -215,6 +215,7 @@ export interface Office {
   graceEndsAtMs?: number | null;
   ownerUserId?: string;
   onboardingCompletedAt?: string | null;
+  onboardingVersion?: number;
   limits?: PlanLimits;
   billingCustomerId?: string | null;
   billingSubscriptionId?: string | null;
@@ -223,6 +224,28 @@ export interface Office {
   createdAt: string;
   updatedAt: string;
 }
+
+export type OnboardingMilestones = {
+  officeReady: boolean;
+  firstContactReady: boolean;
+  firstActionReady: boolean;
+};
+
+export type OnboardingRecommendation = {
+  key: string;
+  label: string;
+  href: string;
+  optional?: boolean;
+};
+
+export type OnboardingState = {
+  version: number;
+  officeId: string;
+  milestones: OnboardingMilestones;
+  optional: { googleCalendarConnected: boolean };
+  nextAction: 'office' | 'first_contact' | 'first_action' | 'activated';
+  recommendations: OnboardingRecommendation[];
+};
 
 export interface PlanLimits {
   maxUsers: number;
@@ -325,6 +348,36 @@ export interface PublicForm {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PublicFormPublic {
+  slug: string;
+  officeId: string;
+  officeName: string;
+  lawyerName: string;
+  whatsapp: string;
+  city: string;
+  state: string;
+  areas: LegalArea[];
+  isActive: boolean;
+}
+
+export type PublicLeadSource = LeadSource | 'Formulário Público';
+
+export interface PublicLeadInput {
+  slug: string;
+  name: string;
+  phone: string;
+  email: string;
+  city: string;
+  state: string;
+  area: LegalArea;
+  summary: string;
+  consentLgpd: boolean;
+  source: PublicLeadSource;
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
 }
 
 export interface Lead {

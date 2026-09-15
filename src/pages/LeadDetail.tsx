@@ -71,6 +71,7 @@ export const LeadDetail = () => {
     lead?.nextActionAt ? new Date(lead.nextActionAt).toISOString().substring(0, 16) : ''
   );
   const [isSavingAction, setIsSavingAction] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [documentCategory, setDocumentCategory] = useState<DocumentCategory>('Comprovante');
   const [documentVisibleInPortal, setDocumentVisibleInPortal] = useState(false);
@@ -79,6 +80,7 @@ export const LeadDetail = () => {
   const [calendarTitle, setCalendarTitle] = useState('');
   const [calendarType, setCalendarType] = useState<CalendarEventType>('Consulta');
   const [calendarStartAt, setCalendarStartAt] = useState('');
+  const [isCreatingCalendarEvent, setIsCreatingCalendarEvent] = useState(false);
   const [financeDescription, setFinanceDescription] = useState('');
   const [financeType, setFinanceType] = useState<FinancialRecordType>('Honorários');
   const [financeAmount, setFinanceAmount] = useState('');
@@ -114,13 +116,23 @@ export const LeadDetail = () => {
   const handleStatusChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newStatus = e.target.value as LeadStatus;
     const oldStatus = lead.status;
-    await updateLead(lead.id, { status: newStatus });
-    await addEvent({
-      leadId: lead.id,
-      type: 'status_changed',
-      description: `Situação atualizada de "${oldStatus}" para "${newStatus}"`,
-      createdBy: user?.id || 'Sistema'
-    });
+    if (newStatus === oldStatus || isUpdatingStatus) return;
+    setIsUpdatingStatus(true);
+    try {
+      await updateLead(lead.id, { status: newStatus });
+      await addEvent({
+        leadId: lead.id,
+        type: 'status_changed',
+        description: `Situação atualizada de "${oldStatus}" para "${newStatus}"`,
+        createdBy: user?.id || 'Sistema'
+      });
+      showToast(`Situação atualizada para ${newStatus}.`, 'success');
+    } catch (error) {
+      console.error(error);
+      showToast('Não foi possível atualizar a situação do contato.', 'error', { durationMs: null });
+    } finally {
+      setIsUpdatingStatus(false);
+    }
   };
 
   const handleAddNote = async () => {
@@ -198,8 +210,9 @@ export const LeadDetail = () => {
   };
 
   const handleCreateCalendarEvent = async () => {
-    if (!calendarTitle.trim() || !calendarStartAt) return;
+    if (!calendarTitle.trim() || !calendarStartAt || isCreatingCalendarEvent) return;
 
+    setIsCreatingCalendarEvent(true);
     try {
       await addCalendarEvent({
         leadId: lead.id,
@@ -217,7 +230,9 @@ export const LeadDetail = () => {
       showToast('Compromisso criado para este contato.', 'success');
     } catch (error) {
       console.error(error);
-      showToast('Erro ao criar compromisso.', 'error');
+      showToast(error instanceof Error ? `Não foi possível criar o compromisso: ${error.message}` : 'Erro ao criar compromisso.', 'error');
+    } finally {
+      setIsCreatingCalendarEvent(false);
     }
   };
 
@@ -316,9 +331,9 @@ export const LeadDetail = () => {
     const lastEvent = leadEvents.length > 0 ? getEventTitle(leadEvents[0].type) : 'Nenhum evento encontrado';
     const nextAction = lead.nextActionText && lead.nextActionAt 
       ? `${lead.nextActionText} em ${new Date(lead.nextActionAt).toLocaleDateString('pt-BR')}` 
-      : 'Sem próxima ação';
+      : 'Sem próxima providência';
     
-    return `Contato: ${lead.name}\nÁrea informada: ${lead.area}\nOrigem: ${lead.source}\nSituação atual: ${lead.status}\nPróxima ação: ${nextAction}\nÚltimo evento: ${lastEvent}`;
+    return `Contato: ${lead.name}\nÁrea informada: ${lead.area}\nOrigem: ${lead.source}\nSituação atual: ${lead.status}\nPróxima providência: ${nextAction}\nÚltimo evento: ${lastEvent}`;
   };
 
   const handleCopySummary = () => {
@@ -335,7 +350,7 @@ export const LeadDetail = () => {
       case 'responsible_assigned': return 'Responsável definido';
       case 'whatsapp_opened': return 'WhatsApp aberto';
       case 'note_added': return 'Anotação registrada';
-      case 'action_created': return 'Próxima ação definida';
+      case 'action_created': return 'Próxima providência definida';
       case 'action_completed': return 'Tarefa concluída';
       case 'document_uploaded': return 'Documento anexado';
       case 'calendar_event_created': return 'Agenda criada';
@@ -466,7 +481,7 @@ export const LeadDetail = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6 space-y-5">
-              <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3 items-end rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 items-end rounded-lg border border-slate-200 bg-slate-50 p-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase">Categoria</label>
                   <Select value={documentCategory} onChange={(event) => setDocumentCategory(event.target.value as DocumentCategory)}>
@@ -525,7 +540,7 @@ export const LeadDetail = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6 space-y-5">
-              <div className="grid grid-cols-1 md:grid-cols-[1fr_160px_190px_auto] gap-3 items-end rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_160px_190px_auto] gap-3 items-end rounded-lg border border-slate-200 bg-slate-50 p-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase">Compromisso</label>
                   <Input value={calendarTitle} onChange={(event) => setCalendarTitle(event.target.value)} placeholder="Ex: Consulta inicial" />
@@ -540,8 +555,8 @@ export const LeadDetail = () => {
                   <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase">Data e hora</label>
                   <Input type="datetime-local" value={calendarStartAt} onChange={(event) => setCalendarStartAt(event.target.value)} />
                 </div>
-                <Button onClick={handleCreateCalendarEvent} disabled={!calendarTitle.trim() || !calendarStartAt}>
-                  Criar
+                <Button type="button" onClick={handleCreateCalendarEvent} disabled={!calendarTitle.trim() || !calendarStartAt || isCreatingCalendarEvent}>
+                  {isCreatingCalendarEvent ? 'Criando...' : 'Criar'}
                 </Button>
               </div>
 
@@ -572,7 +587,7 @@ export const LeadDetail = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6 space-y-5">
-              <div className="grid grid-cols-1 md:grid-cols-[1fr_150px_130px_160px_auto] gap-3 items-end rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_150px_130px_160px_auto] gap-3 items-end rounded-lg border border-slate-200 bg-slate-50 p-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase">Descrição</label>
                   <Input value={financeDescription} onChange={(event) => setFinanceDescription(event.target.value)} placeholder="Ex: Honorários iniciais" />
@@ -753,12 +768,12 @@ export const LeadDetail = () => {
         </div>
 
         {/* Right Column - Actions & Timeline */}
-        <div className="space-y-6">
+        <div className="space-y-6 xl:sticky xl:top-6 xl:self-start">
           
           <Card className="border-slate-200 shadow-sm overflow-hidden">
             <div className={`p-1 ${isActionOverdue ? 'bg-red-500' : lead.nextActionAt ? 'bg-brand-500' : 'bg-slate-200'}`}></div>
             <CardHeader className="bg-slate-50 border-b border-slate-100 py-4">
-              <CardTitle className="text-base text-slate-900">Próxima ação e Situação</CardTitle>
+              <CardTitle className="text-base text-slate-900">Próxima providência e situação</CardTitle>
             </CardHeader>
             <CardContent className="p-5 space-y-6">
               
@@ -779,14 +794,14 @@ export const LeadDetail = () => {
                   </>
                 ) : (
                   <div className="text-center py-4">
-                    <p className="text-sm font-medium text-slate-500">Nenhuma próxima ação definida.</p>
+                    <p className="text-sm font-medium text-slate-500">Nenhuma próxima providência definida.</p>
                   </div>
                 )}
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Atualizar Situação</label>
-                <Select value={lead.status} onChange={handleStatusChange} className="w-full text-sm">
+                <Select value={lead.status} onChange={handleStatusChange} disabled={isUpdatingStatus} className="w-full text-sm">
                   <option value="Novo contato">Novo contato</option>
                   <option value="Aguardando triagem">Aguardando triagem</option>
                   <option value="Triagem realizada">Triagem realizada</option>
@@ -800,7 +815,7 @@ export const LeadDetail = () => {
               </div>
 
               <div className="pt-5 border-t border-slate-100">
-                <label className="block text-xs font-semibold text-slate-500 mb-3 uppercase tracking-wider">Definir próxima ação</label>
+                <label className="block text-xs font-semibold text-slate-500 mb-3 uppercase tracking-wider">Definir próxima providência</label>
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1.5">O que fazer a seguir?</label>

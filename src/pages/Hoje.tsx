@@ -187,7 +187,7 @@ export const Hoje = () => {
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5 truncate font-mono">
-                    {office?.slug ? `/o/${office.slug}` : 'Configure um slug'}
+                    {office?.slug ? `/o/${office.slug}` : 'Configure o endereço público'}
                   </p>
                 </div>
               </div>
@@ -205,7 +205,7 @@ export const Hoje = () => {
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5 truncate font-mono">
-                    {office?.slug ? `/public/${office.slug}/contact` : 'Configure um slug'}
+                    {office?.slug ? `/public/${office.slug}/contact` : 'Configure o endereço público'}
                   </p>
                 </div>
               </div>

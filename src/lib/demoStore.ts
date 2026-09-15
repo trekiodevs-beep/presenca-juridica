@@ -1,5 +1,5 @@
 import { mockLeads, mockEvents, mockTasks, mockDocuments, mockCalendarEvents, mockFinancialRecords, mockPortalAccesses, mockOffice } from '../mockData';
-import type { Lead, PublicForm } from '../types';
+import type { ClientPortalAccess, Lead, PublicForm } from '../types';
 
 export const DEMO_STORAGE_KEY = 'presenca-juridica-demo-v1';
 export const DEMO_CHANGED = 'presenca-juridica-demo-changed';
@@ -46,4 +46,8 @@ export function createDemoPublicLead(input: Omit<Lead, 'id' | 'createdAt' | 'upd
 export function getDemoPublicForm(slug: string): PublicForm | null {
   if (slug !== mockOffice.slug) return null;
   return { slug, officeId: mockOffice.id, officeName: mockOffice.name, lawyerName: mockOffice.lawyerName, whatsapp: mockOffice.whatsapp, email: mockOffice.email, city: mockOffice.city, state: mockOffice.state, areas: mockOffice.areas, isActive: true, createdAt: mockOffice.createdAt, updatedAt: mockOffice.updatedAt };
+}
+
+export function getDemoPortalAccessByToken(token: string): ClientPortalAccess | null {
+  return readDemoData().portalAccesses.find(access => access.id === token) || null;
 }

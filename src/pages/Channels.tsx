@@ -131,9 +131,9 @@ export const Channels = () => {
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-amber-800 text-sm flex items-start gap-3">
           <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
           <div>
-            <h4 className="font-bold text-amber-900 mb-1">Slug do escritório pendente</h4>
+            <h4 className="font-bold text-amber-900 mb-1">Endereço público pendente</h4>
             <p className="leading-relaxed">
-              Você precisa definir um Slug Público na tela de <strong>Configurações</strong> para que seus links públicos e páginas personalizadas funcionem corretamente.
+              Defina o endereço público na tela de <strong>Configurações</strong> para ativar seus links e páginas personalizadas.
             </p>
           </div>
         </div>

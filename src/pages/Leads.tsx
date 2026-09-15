@@ -180,7 +180,7 @@ export const Leads = () => {
     <div className={cn('space-y-6 mx-auto px-4 sm:px-6 pb-12', viewMode === 'kanban' ? 'max-w-[1600px]' : 'max-w-7xl')}>
       <PageHeader
         title="Contatos"
-        description="Acompanhe captação, triagem, retorno, documentos, agenda e financeiro dos clientes."
+        description="Acompanhe entrada, triagem, retorno, documentos, agenda e financeiro dos clientes."
         breadcrumbItems={[{ label: 'Contatos' }]}
         actions={headerActions}
       />
@@ -238,7 +238,7 @@ export const Leads = () => {
         </div>
       </div>
 
-      <div className="flex overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 hide-scrollbar gap-2">
+      <div className="flex overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 gap-2 [scrollbar-width:thin]">
         <button onClick={() => setQuickFilter('all')} className={getQuickFilterClass('all')}>Todos</button>
         <button onClick={() => setQuickFilter('waiting')} className={getQuickFilterClass('waiting')}>Aguardando triagem</button>
         <button onClick={() => setQuickFilter('delayed')} className={getQuickFilterClass('delayed')}>Atrasados</button>
@@ -373,20 +373,26 @@ export const Leads = () => {
                       </div>
 
                       <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-100 pt-3">
-                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                        {(signals.documentCount > 0 || signals.appointmentCount > 0 || signals.openFinancialCount > 0) && <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                          {signals.documentCount > 0 && (
                           <span className="inline-flex items-center gap-1.5">
                             <FileText className="h-3.5 w-3.5" />
                             {signals.documentCount} doc.
                           </span>
+                          )}
+                          {signals.appointmentCount > 0 && (
                           <span className="inline-flex items-center gap-1.5">
                             <CalendarDays className="h-3.5 w-3.5" />
                             {signals.appointmentCount} agenda
                           </span>
+                          )}
+                          {signals.openFinancialCount > 0 && (
                           <span className="inline-flex items-center gap-1.5">
                             <WalletCards className="h-3.5 w-3.5" />
                             {signals.openFinancialCount} financeiro
                           </span>
-                        </div>
+                          )}
+                        </div>}
 
                         <div className="flex items-center gap-2">
                           <button

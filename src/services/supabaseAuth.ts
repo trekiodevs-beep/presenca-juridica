@@ -40,6 +40,7 @@ const mapOffice = (office: Record<string, unknown>): Office => ({
   graceEndsAtMs: office.grace_ends_at_ms ? Number(office.grace_ends_at_ms) : null,
   ownerUserId: office.owner_user_id ? String(office.owner_user_id) : undefined,
   onboardingCompletedAt: office.onboarding_completed_at ? String(office.onboarding_completed_at) : null,
+  onboardingVersion: Number(office.onboarding_version || 1),
   limits: (office.limits || getPlanLimits('trial')) as Office['limits'],
   deletionScheduledAt: office.deletion_scheduled_at ? String(office.deletion_scheduled_at) : null,
   createdAt: String(office.created_at),

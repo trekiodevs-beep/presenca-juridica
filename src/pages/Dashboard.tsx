@@ -347,7 +347,7 @@ export const Dashboard = () => {
             {mainSource && <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md font-medium">Principal: {mainSource.name}</span>}
           </CardHeader>
           <CardContent className="p-5 flex-1">
-            <div className="space-y-3"><table className="w-full text-sm text-left">
+            <div className="space-y-3 overflow-x-auto"><table className="min-w-[420px] w-full text-sm text-left">
               <thead className="hidden bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
                 <tr>
                   <th className="px-4 py-3 border-b border-slate-100">Origem do contato</th>
@@ -403,7 +403,7 @@ export const Dashboard = () => {
             {mainArea && <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md font-medium">Top: {mainArea.name}</span>}
           </CardHeader>
           <CardContent className="p-5 flex-1">
-            <div className="space-y-3"><table className="w-full text-sm text-left">
+            <div className="space-y-3 overflow-x-auto"><table className="min-w-[420px] w-full text-sm text-left">
               <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
                 <tr>
                   <th className="px-4 py-3 border-b border-slate-100">Área de atuação</th>

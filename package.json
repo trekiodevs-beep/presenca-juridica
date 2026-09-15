@@ -13,6 +13,7 @@
     "test:documents": "tsx --test tests-supabase/documents.test.ts",
     "test:calendar": "tsx --test tests-supabase/calendar.test.ts",
     "test:alarms": "tsx --test tests-supabase/alarms.test.ts",
+    "test:realtime": "tsx --test tests-supabase/realtime.test.ts",
     "smoke:alarm-evaluator": "tsx scripts/smoke-alarm-evaluator.ts",
     "seed:demo-account": "tsx scripts/seed-demo-account.ts",
     "test:rules": "firebase emulators:exec --only firestore --project presenca-juridica-test \"tsx --test tests-rules/*.test.ts\"",

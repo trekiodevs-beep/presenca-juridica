@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, PlusCircle, Settings, LogOut, Briefcase, Route as RouteIcon, Compass, CalendarDays, CircleDollarSign, KeyRound, ListChecks, CreditCard, UsersRound, ShieldCheck, LifeBuoy, Bell } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, LogOut, Briefcase, Route as RouteIcon, Compass, CalendarDays, CircleDollarSign, KeyRound, ListChecks, CreditCard, UsersRound, ShieldCheck, LifeBuoy, Bell } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { cn } from '../../lib/utils';
 
@@ -82,7 +82,7 @@ export const Sidebar = ({
     <aside className={cn(
       "bg-[linear-gradient(180deg,#070b12_0%,#0a1222_54%,#070b12_100%)] text-slate-300 flex flex-col h-full transition-all duration-300 shrink-0 shadow-[8px_0_30px_rgba(3,6,12,.14)]",
       mobileOpen ? "w-full" : (collapsed ? "w-20" : "w-64"),
-      !mobileOpen && "hidden md:flex"
+      !mobileOpen && "hidden lg:flex"
     )}>
       <div className={cn("flex py-6", (collapsed && !mobileOpen) ? "flex-col items-center px-2" : "flex-col px-6")}>
         <div className={cn("flex items-center", (collapsed && !mobileOpen) ? "justify-center" : "gap-3")}>
@@ -109,21 +109,6 @@ export const Sidebar = ({
       </div>
 
       <nav className="sidebar-scrollbar flex-1 overflow-y-auto px-2 py-4">
-        <div className="mb-5 px-1">
-          <Link
-            to="/leads/new"
-            onClick={onCloseMobile}
-            title={collapsed ? "Novo contato" : undefined}
-            className={cn(
-              "flex h-9 items-center gap-2 rounded-lg bg-white/[0.06] px-3 text-xs font-semibold text-slate-100 ring-1 ring-inset ring-white/[0.1] transition-colors hover:bg-white/[0.1] hover:ring-blue-400/40",
-              (collapsed && !mobileOpen) ? "justify-center px-0" : "px-3"
-            )}
-          >
-            <PlusCircle className="h-4 w-4 shrink-0 text-blue-300" />
-            {(!collapsed || mobileOpen) && <span>Novo contato</span>}
-          </Link>
-        </div>
-
         <div className="space-y-5">
           {navGroups.map((group, groupIndex) => (
             <div

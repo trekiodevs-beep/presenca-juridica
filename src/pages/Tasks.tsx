@@ -22,6 +22,8 @@ export const Tasks = () => {
   const [title, setTitle] = useState('');
   const [dueAt, setDueAt] = useState('');
   const [saving, setSaving] = useState(false);
+  const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
+  const [taskFormOpen, setTaskFormOpen] = useState(false);
 
   const getLeadName = (id?: string | null) => {
     if (!id) return 'Sem contato vinculado';
@@ -72,6 +74,7 @@ export const Tasks = () => {
       setTitle('');
       setLeadId('');
       setDueAt('');
+      setTaskFormOpen(false);
       showToast('Tarefa criada.', 'success');
     } catch (error) {
       console.error(error);
@@ -82,10 +85,20 @@ export const Tasks = () => {
   };
 
   const toggleTask = async (taskId: string, done: boolean) => {
-    await updateTask(taskId, {
-      done,
-      completedAt: done ? new Date().toISOString() : undefined,
-    });
+    if (updatingTaskId) return;
+    setUpdatingTaskId(taskId);
+    try {
+      await updateTask(taskId, {
+        done,
+        completedAt: done ? new Date().toISOString() : undefined,
+      });
+      showToast(done ? 'Tarefa concluída.' : 'Tarefa reaberta.', 'success');
+    } catch (error) {
+      console.error(error);
+      showToast('Não foi possível atualizar a tarefa.', 'error', { durationMs: null });
+    } finally {
+      setUpdatingTaskId(null);
+    }
   };
 
   const filterButtonClass = (value: TaskFilter) => cn(
@@ -154,7 +167,7 @@ export const Tasks = () => {
                 onChange={(event) => setSearchTerm(event.target.value)}
               />
             </div>
-            <div className="flex overflow-x-auto hide-scrollbar gap-2">
+            <div className="flex overflow-x-auto gap-2 [scrollbar-width:thin]">
               <button onClick={() => setFilter('open')} className={filterButtonClass('open')}>Abertas</button>
               <button onClick={() => setFilter('today')} className={filterButtonClass('today')}>Hoje</button>
               <button onClick={() => setFilter('overdue')} className={filterButtonClass('overdue')}>Vencidas</button>
@@ -181,11 +194,12 @@ export const Tasks = () => {
                       <div className="flex items-start gap-3 min-w-0">
                         <button
                           onClick={() => toggleTask(task.id, !task.done)}
+                          disabled={updatingTaskId === task.id}
+                          aria-label={task.done ? `Reabrir ${task.title}` : `Concluir ${task.title}`}
                           className={cn(
                             'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors',
                             task.done ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-300 bg-white text-slate-400 hover:border-brand-300 hover:text-brand-700'
                           )}
-                          aria-label={task.done ? 'Reabrir tarefa' : 'Concluir tarefa'}
                         >
                           {task.done ? <CheckCircle2 className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
                         </button>
@@ -231,11 +245,19 @@ export const Tasks = () => {
           )}
         </div>
 
-        <Card className="border-slate-200 h-fit overflow-hidden">
-          <div className="border-b border-slate-100 bg-slate-50 px-5 py-4">
-            <h2 className="text-base font-bold text-slate-950">Nova tarefa</h2>
+        <Card className="border-slate-200 h-fit overflow-hidden xl:sticky xl:top-6">
+          <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-5 py-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-950">Nova tarefa</h2>
+              {tasks.length > 0 && !taskFormOpen && <p className="mt-1 text-xs text-slate-500">Abra quando precisar registrar uma providência.</p>}
+            </div>
+            {tasks.length > 0 && (
+              <Button type="button" variant="outline" size="sm" onClick={() => setTaskFormOpen(current => !current)}>
+                {taskFormOpen ? 'Fechar' : 'Criar'}
+              </Button>
+            )}
           </div>
-          <CardContent className="p-5">
+          {(tasks.length === 0 || taskFormOpen) && <CardContent className="p-5">
             <form onSubmit={handleCreateTask} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase">Tarefa</label>
@@ -257,7 +279,7 @@ export const Tasks = () => {
                 {saving ? 'Salvando...' : 'Criar tarefa'}
               </Button>
             </form>
-          </CardContent>
+          </CardContent>}
         </Card>
       </div>
     </div>

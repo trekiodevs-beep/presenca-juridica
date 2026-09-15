@@ -6,6 +6,7 @@ import { AlertTriangle, CalendarDays, CheckCircle2, Clock, MapPin, Plus, Refresh
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { useData } from '../context/DataContext';
@@ -49,6 +50,8 @@ export const Agenda = () => {
   const [editEndAt, setEditEndAt] = useState('');
   const [editLocation, setEditLocation] = useState('');
   const [editNotes, setEditNotes] = useState('');
+  const [updatingEventId, setUpdatingEventId] = useState<string | null>(null);
+  const [eventToDelete, setEventToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     void supabase.functions.invoke('calendar-connection-status', { method: 'GET' }).then(({ data }) => setConnection(data?.connection || null));
@@ -62,14 +65,29 @@ export const Agenda = () => {
     finally { setSyncing(false); }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Excluir este compromisso? O histórico será preservado e a exclusão será propagada quando aplicável.')) return;
-    try { await removeCalendarEvent(id); showToast('Compromisso excluído e colocado na fila de sincronização.', 'success'); }
-    catch (error) { console.error(error); showToast('Não foi possível excluir o compromisso.', 'error'); }
+  const handleDelete = async () => {
+    if (!eventToDelete) return;
+    setUpdatingEventId(eventToDelete);
+    try { await removeCalendarEvent(eventToDelete); showToast('Compromisso excluído e colocado na fila de sincronização.', 'success'); }
+    catch (error) { console.error(error); showToast('Não foi possível excluir o compromisso.', 'error', { durationMs: null }); }
+    finally { setUpdatingEventId(null); setEventToDelete(null); }
   };
 
   const startEditing = (event: CalendarEvent) => { setEditingId(event.id); setEditTitle(event.title); setEditStartAt(new Date(event.startAt).toISOString().slice(0, 16)); setEditEndAt(event.endAt ? new Date(event.endAt).toISOString().slice(0, 16) : ''); setEditLocation(event.location || ''); setEditNotes(event.notes || ''); };
   const saveEditing = async () => { if (!editingId || !editTitle.trim() || !editStartAt) return; try { await updateCalendarEvent(editingId, { title: editTitle.trim(), startAt: new Date(editStartAt).toISOString(), endAt: editEndAt ? new Date(editEndAt).toISOString() : null, location: editLocation.trim() || null, notes: editNotes.trim() || null }); setEditingId(null); showToast('Compromisso atualizado.', 'success'); } catch { showToast('Não foi possível atualizar o compromisso.', 'error'); } };
+  const handleEventStatusChange = async (eventId: string, status: CalendarEventStatus) => {
+    if (updatingEventId) return;
+    setUpdatingEventId(eventId);
+    try {
+      await updateCalendarEvent(eventId, { status });
+      showToast('Status do compromisso atualizado.', 'success');
+    } catch (error) {
+      console.error(error);
+      showToast('Não foi possível atualizar o status do compromisso.', 'error', { durationMs: null });
+    } finally {
+      setUpdatingEventId(null);
+    }
+  };
 
   const weekDays = useMemo(() => {
     const today = startOfDay(new Date());
@@ -213,7 +231,7 @@ export const Agenda = () => {
                           </p>
                         )}
                       </div>
-                      <div className="space-y-2"><Select value={event.status} onChange={(changeEvent) => updateCalendarEvent(event.id, { status: changeEvent.target.value as CalendarEventStatus })} className="w-full">{eventStatuses.map(status => <option key={status} value={status}>{status}</option>)}</Select><div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={() => startEditing(event)}>Editar</Button><Button type="button" variant="outline" onClick={() => handleDelete(event.id)}><Trash2 className="mr-1 h-3.5 w-3.5" />Excluir</Button>{event.syncStatus === 'conflict' && <><Button type="button" variant="outline" onClick={async () => { try { await resolveCalendarConflict(event.id, 'crm'); showToast('Conflito enviado para prevalecer o CRM.', 'success'); } catch { showToast('Não foi possível resolver o conflito.', 'error'); } }}>Manter CRM</Button><Button type="button" variant="outline" onClick={async () => { try { await resolveCalendarConflict(event.id, 'google'); showToast('Conflito enviado para prevalecer o Google.', 'success'); } catch { showToast('Não foi possível resolver o conflito.', 'error'); } }}>Manter Google</Button><Button type="button" variant="outline" onClick={() => showToast('Revise os snapshots no histórico antes de escolher uma origem.', 'info')}>Revisar</Button></>}</div></div>
+                      <div className="space-y-2"><Select value={event.status} onChange={(changeEvent) => void handleEventStatusChange(event.id, changeEvent.target.value as CalendarEventStatus)} disabled={updatingEventId === event.id} className="w-full">{eventStatuses.map(status => <option key={status} value={status}>{status}</option>)}</Select><div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={() => startEditing(event)}>Editar</Button><Button type="button" variant="outline" onClick={() => setEventToDelete(event.id)}><Trash2 className="mr-1 h-3.5 w-3.5" />Excluir</Button>{event.syncStatus === 'conflict' && <><Button type="button" variant="outline" onClick={async () => { try { await resolveCalendarConflict(event.id, 'crm'); showToast('Conflito enviado para prevalecer o CRM.', 'success'); } catch { showToast('Não foi possível resolver o conflito.', 'error'); } }}>Manter CRM</Button><Button type="button" variant="outline" onClick={async () => { try { await resolveCalendarConflict(event.id, 'google'); showToast('Conflito enviado para prevalecer o Google.', 'success'); } catch { showToast('Não foi possível resolver o conflito.', 'error'); } }}>Manter Google</Button><Button type="button" variant="outline" onClick={() => showToast('Revise os snapshots no histórico antes de escolher uma origem.', 'info')}>Revisar</Button></>}</div></div>
                       </div>
                       {editingId === event.id && <div className="md:col-span-3 grid grid-cols-1 gap-2 rounded-lg bg-slate-50 p-3 sm:grid-cols-2"><Input value={editTitle} onChange={e => setEditTitle(e.target.value)} aria-label="Título do compromisso" /><Input type="datetime-local" value={editStartAt} onChange={e => setEditStartAt(e.target.value)} aria-label="Início" /><Input type="datetime-local" value={editEndAt} onChange={e => setEditEndAt(e.target.value)} aria-label="Fim" /><Input value={editLocation} onChange={e => setEditLocation(e.target.value)} aria-label="Local" placeholder="Local/canal" /><Input value={editNotes} onChange={e => setEditNotes(e.target.value)} aria-label="Observações" placeholder="Observações" /><div className="flex gap-2"><Button type="button" onClick={saveEditing}>Salvar</Button><Button type="button" variant="outline" onClick={() => setEditingId(null)}>Cancelar</Button></div></div>}</React.Fragment>
                   ))}
@@ -303,6 +321,7 @@ export const Agenda = () => {
           </Card>
         </div>
       </div>
+      <ConfirmDialog open={Boolean(eventToDelete)} title="Excluir compromisso?" description="O histórico será preservado e a exclusão será propagada para os calendários integrados quando aplicável." confirmLabel="Excluir compromisso" variant="danger" loading={Boolean(updatingEventId)} onCancel={() => setEventToDelete(null)} onConfirm={handleDelete} />
     </div>
   );
 };

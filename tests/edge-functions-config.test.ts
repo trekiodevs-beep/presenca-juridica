@@ -90,4 +90,11 @@ test('Calendar outbox is enqueued only after its parent event exists', () => {
   assert.match(migration, /execute function public\.prepare_calendar_event_sync\(\)/);
   assert.match(migration, /execute function public\.enqueue_calendar_sync\(\)/);
   assert.doesNotMatch(migration, /create trigger calendar_events_enqueue_sync\s+before insert/i);
+
+  const pendingStatusFix = readFileSync(
+    resolve(process.cwd(), 'supabase', 'migrations', '20260915000200_fix_calendar_pending_status.sql'),
+    'utf8',
+  );
+  assert.match(pendingStatusFix, /update public\.calendar_events\s+set sync_status = 'pending', sync_error = null/i);
+  assert.match(pendingStatusFix, /sync_status is distinct from 'pending'/i);
 });

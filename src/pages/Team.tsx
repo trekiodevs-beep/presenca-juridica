@@ -4,6 +4,7 @@ import { PageHeader } from '../components/layout/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { listenMembershipsByOffice } from '../services/supabaseDb';
@@ -26,6 +27,7 @@ export const Team = () => {
   const [role, setRole] = useState<UserRole>('lawyer');
   const [loading, setLoading] = useState(false);
   const [lastInvitationUrl, setLastInvitationUrl] = useState('');
+  const [memberToPromote, setMemberToPromote] = useState<Membership | null>(null);
   const canManage = user?.role === 'owner' || user?.role === 'admin';
 
   const refreshInvitations = async () => {
@@ -69,9 +71,16 @@ export const Team = () => {
   };
 
   const handleTransfer = async (member: Membership) => {
-    if (user?.role !== 'owner' || member.status !== 'active' || !window.confirm(`Transferir a propriedade para ${member.email}?`)) return;
-    try { await transferOwnership(member.userId); showToast('Propriedade transferida.', 'success'); window.location.reload(); }
+    if (user?.role !== 'owner' || member.status !== 'active') return;
+    setMemberToPromote(member);
+  };
+
+  const confirmTransfer = async () => {
+    if (!memberToPromote) return;
+    setLoading(true);
+    try { await transferOwnership(memberToPromote.userId); showToast('Propriedade transferida.', 'success'); window.location.reload(); }
     catch (error) { console.error(error); showToast('Não foi possível transferir a propriedade.', 'error'); }
+    finally { setLoading(false); setMemberToPromote(null); }
   };
 
   return (
@@ -103,6 +112,7 @@ export const Team = () => {
           {members.map(member => <div key={member.id} className="flex flex-col gap-3 rounded-lg border border-slate-200 p-4 md:flex-row md:items-center md:justify-between"><div className="flex items-center gap-3"><div className="rounded-full bg-brand-50 p-2 text-brand-700"><UserRound className="h-4 w-4" /></div><div><p className="font-semibold text-slate-900">{member.name || member.email}</p><p className="text-xs text-slate-500">{member.email} · {member.role} · {member.status}</p></div></div>{member.role === 'owner' ? <span className="flex items-center gap-1 text-xs font-semibold text-brand-700"><Shield className="h-4 w-4" />Proprietário</span> : <div className="flex gap-2"><button className="text-xs font-semibold text-brand-700 hover:text-brand-900" disabled={!canManage} onClick={() => handleMemberStatus(member)}>{member.status === 'blocked' ? 'Reativar' : 'Bloquear'}</button>{user?.role === 'owner' && <button className="text-xs font-semibold text-slate-500 hover:text-brand-900" disabled={!canManage || member.status !== 'active'} onClick={() => handleTransfer(member)}>Transferir propriedade</button>}<button className="text-slate-400 hover:text-red-600" title="Remover acesso" disabled={!canManage} onClick={() => setMemberStatus(member.userId, 'removed').then(() => showToast('Membro removido.', 'success')).catch(error => { console.error(error); showToast('Não foi possível remover o membro.', 'error'); })}><UserX className="h-4 w-4" /></button></div>}</div>)}
         </CardContent>
       </Card>
+      <ConfirmDialog open={Boolean(memberToPromote)} title="Transferir propriedade?" description={`Ao confirmar, ${memberToPromote?.email || 'este membro'} passará a controlar o escritório e as permissões administrativas.`} confirmLabel="Transferir propriedade" variant="danger" loading={loading} onCancel={() => setMemberToPromote(null)} onConfirm={confirmTransfer} />
     </div>
   );
 };

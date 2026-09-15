@@ -4,7 +4,7 @@ import { Building2, ShieldAlert } from 'lucide-react';
 
 import { PublicContactForm } from '../components/PublicContactForm';
 import { getPublicFormBySlug } from '../services/supabaseDb';
-import { PublicForm as PublicFormType } from '../types';
+import { PublicFormPublic as PublicFormType } from '../types';
 
 export const PublicForm = () => {
   const { officeSlug } = useParams<{ officeSlug: string }>();

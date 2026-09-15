@@ -35,7 +35,7 @@ export const Topbar = ({ onToggleSidebar }: { onToggleSidebar?: () => void }) =>
           className="hidden md:flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900 rounded-lg text-xs font-semibold shadow-sm transition-colors"
         >
           <RouteIcon className="w-3.5 h-3.5 text-brand-600" />
-          Canais plug-and-play
+          Canais de entrada
         </Link>
         <Link 
           to="/leads/new" 

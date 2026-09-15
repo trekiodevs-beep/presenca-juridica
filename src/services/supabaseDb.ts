@@ -1,9 +1,9 @@
-import type { CalendarEvent, ClientPortalAccess, DocumentCategory, FinancialRecord, Lead, LeadDocument, LeadEvent, Membership, PublicForm, Task, UsageCounter } from '../types';
+import type { CalendarEvent, ClientPortalAccess, DocumentCategory, FinancialRecord, Lead, LeadDocument, LeadEvent, Membership, PublicForm, PublicFormPublic, PublicLeadInput, Task, UsageCounter } from '../types';
 import { supabase } from '../lib/supabase';
 
 const now = () => new Date().toISOString();
 
-const mapLead = (row: Record<string, unknown>): Lead => ({
+export const mapLead = (row: Record<string, unknown>): Lead => ({
   id: String(row.id), officeId: String(row.office_id), name: String(row.name || ''), phone: String(row.phone || ''),
   email: String(row.email || ''), city: String(row.city || ''), state: String(row.state || ''),
   source: row.source as Lead['source'], area: row.area as Lead['area'], status: row.status as Lead['status'],
@@ -65,10 +65,10 @@ const throwPending = (operation: string): never => {
   throw new Error(`Operação Supabase ainda não migrada: ${operation}.`);
 };
 
-const mapPublicForm = (row: Record<string, unknown>): PublicForm => ({
+const mapPublicFormPublic = (row: Record<string, unknown>): PublicFormPublic => ({
   slug: String(row.slug), officeId: String(row.office_id), officeName: String(row.office_name || ''), lawyerName: String(row.lawyer_name || ''),
-  whatsapp: String(row.whatsapp || ''), email: String(row.email || ''), city: String(row.city || ''), state: String(row.state || ''),
-  areas: Array.isArray(row.areas) ? row.areas as PublicForm['areas'] : [], isActive: Boolean(row.is_active), createdAt: String(row.created_at), updatedAt: String(row.updated_at),
+  whatsapp: String(row.whatsapp || ''), city: String(row.city || ''), state: String(row.state || ''),
+  areas: Array.isArray(row.areas) ? row.areas as PublicFormPublic['areas'] : [], isActive: Boolean(row.is_active),
 });
 
 const mapMembership = (row: Record<string, unknown>): Membership => ({
@@ -96,16 +96,32 @@ const mapClientPortalAccess = (row: Record<string, unknown>): ClientPortalAccess
 
 const listen = <T>(table: string, officeId: string, map: (row: Record<string, unknown>) => T, callback: (items: T[]) => void, orderBy: string) => {
   let active = true;
+  let recoveryTimer: number | undefined;
   const refresh = async () => {
     const { data, error } = await supabase.from(table).select('*').eq('office_id', officeId).order(orderBy, { ascending: true });
     if (error) { console.error(`Supabase ${table} read failed:`, error); return; }
     if (active) callback((data || []).map(row => map(row as Record<string, unknown>)));
   };
+  const scheduleRecovery = () => {
+    if (!active || recoveryTimer !== undefined) return;
+    recoveryTimer = window.setTimeout(() => { recoveryTimer = undefined; void refresh(); }, 30000);
+  };
   void refresh();
   const channel = supabase.channel(`local-${table}-${officeId}-${Math.random().toString(36).slice(2)}`)
     .on('postgres_changes', { event: '*', schema: 'public', table, filter: `office_id=eq.${officeId}` }, () => { void refresh(); })
-    .subscribe();
-  return () => { active = false; void supabase.removeChannel(channel); };
+    .subscribe((status) => {
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') scheduleRecovery();
+    });
+  const recoveryInterval = window.setInterval(() => { if (document.visibilityState === 'visible') void refresh(); }, 60000);
+  const handleVisibility = () => { if (document.visibilityState === 'visible') void refresh(); };
+  document.addEventListener('visibilitychange', handleVisibility);
+  return () => {
+    active = false;
+    if (recoveryTimer !== undefined) window.clearTimeout(recoveryTimer);
+    window.clearInterval(recoveryInterval);
+    document.removeEventListener('visibilitychange', handleVisibility);
+    void supabase.removeChannel(channel);
+  };
 };
 
 export const listenLeadsByOffice = (officeId: string, callback: (items: Lead[]) => void) => listen('leads', officeId, mapLead, callback, 'updated_at');
@@ -124,10 +140,13 @@ export const getUsageCounter = async (officeId: string): Promise<UsageCounter | 
   return data ? { officeId: String(data.office_id), users: Number(data.users || 0), contacts: Number(data.contacts || 0), storageBytes: Number(data.storage_bytes || 0), storageReservedBytes: Number(data.storage_reserved_bytes || 0), refreshedAt: String(data.refreshed_at) } : null;
 };
 
-export const getPublicFormBySlug = async (slug: string): Promise<PublicForm | null> => {
-  const { data, error } = await supabase.from('public_forms').select('*').eq('slug', slug).eq('is_active', true).maybeSingle();
+export const getPublicFormBySlug = async (slug: string): Promise<PublicFormPublic | null> => {
+  const normalizedSlug = slug.trim().toLowerCase();
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(normalizedSlug) || normalizedSlug.length > 120) return null;
+  const { data, error } = await supabase.rpc('get_public_form_by_slug', { requested_slug: normalizedSlug });
   if (error) throw error;
-  return data ? mapPublicForm(data) : null;
+  const row = Array.isArray(data) ? data[0] : data;
+  return row ? mapPublicFormPublic(row as Record<string, unknown>) : null;
 };
 
 export const updatePublicForm = async (slug: string, data: Partial<PublicForm>) => {
@@ -140,13 +159,39 @@ export const updatePublicForm = async (slug: string, data: Partial<PublicForm>) 
 
 export const updateOffice = async (officeId: string, data: Partial<import('../types').Office>) => {
   const mapped: Record<string, unknown> = { updated_at: now() };
-  const fields: Record<string, string> = { lawyerName: 'lawyer_name', whatsappMessageTemplate: 'whatsapp_message_template', ownerUserId: 'owner_user_id', planCode: 'plan_code', subscriptionStatus: 'subscription_status', trialStartedAt: 'trial_started_at', trialEndsAt: 'trial_ends_at', trialEndsAtMs: 'trial_ends_at_ms', onboardingCompletedAt: 'onboarding_completed_at', deletionScheduledAt: 'deletion_scheduled_at' };
+  const fields: Record<string, string> = { lawyerName: 'lawyer_name', whatsappMessageTemplate: 'whatsapp_message_template', ownerUserId: 'owner_user_id', planCode: 'plan_code', subscriptionStatus: 'subscription_status', trialStartedAt: 'trial_started_at', trialEndsAt: 'trial_ends_at', trialEndsAtMs: 'trial_ends_at_ms', onboardingCompletedAt: 'onboarding_completed_at', onboardingVersion: 'onboarding_version', deletionScheduledAt: 'deletion_scheduled_at' };
   for (const [key, value] of Object.entries(data)) if (key !== 'id' && key !== 'createdAt') mapped[fields[key] || key] = value;
   const { error } = await supabase.from('offices').update(mapped).eq('id', officeId);
   if (error) throw error;
 };
 
-export const createPublicLead = async (lead: { officeId: string; name: string; phone: string; email: string; city: string; state: string; area: Lead['area']; summary: string; consentLgpd: boolean; source: Lead['source']; status: 'Novo contato'; priority: 'Média'; createdVia: 'public_form'; publicFormSlug: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; }) => createLead({ ...lead, notes: '' });
+export const createPublicLead = async (lead: PublicLeadInput): Promise<string> => {
+  const normalizedSlug = lead.slug.trim().toLowerCase();
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(normalizedSlug) || normalizedSlug.length > 120) {
+    throw new Error('public_lead_creation_failed');
+  }
+
+  const { data, error } = await supabase.rpc('create_public_lead', {
+    requested_slug: normalizedSlug,
+    lead_name: lead.name,
+    lead_phone: lead.phone,
+    lead_email: lead.email,
+    lead_city: lead.city,
+    lead_state: lead.state,
+    lead_area: lead.area,
+    lead_summary: lead.summary,
+    lead_consent_lgpd: lead.consentLgpd,
+    lead_source: lead.source,
+    lead_utm_source: lead.utmSource || null,
+    lead_utm_medium: lead.utmMedium || null,
+    lead_utm_campaign: lead.utmCampaign || null,
+  });
+  if (error) throw new Error('public_lead_creation_failed');
+
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || row.success !== true || !row.lead_id) throw new Error('public_lead_creation_failed');
+  return String(row.lead_id);
+};
 
 export const getClientPortalAccessByToken = async (token: string): Promise<ClientPortalAccess | null> => {
   const { data, error } = await supabase.from('client_portal_access').select('*').eq('id', token).maybeSingle();
@@ -243,9 +288,21 @@ export const updateTask = async (taskId: string, updates: Partial<Task>) => {
 };
 
 export const createCalendarEvent = async (event: Omit<CalendarEvent, 'id' | 'createdAt' | 'updatedAt'>) => {
-  const { data, error } = await supabase.from('calendar_events').insert({ office_id: event.officeId, lead_id: event.leadId || null, title: event.title, type: event.type, status: event.status, start_at: event.startAt, end_at: event.endAt || null, location: event.location || null, notes: event.notes || null, responsible_user_id: event.responsibleUserId || null, sync_status: 'not_connected' }).select('id').single();
+  const { data, error } = await supabase.from('calendar_events').insert({ office_id: event.officeId, lead_id: event.leadId || null, title: event.title, type: event.type, status: event.status, start_at: event.startAt, end_at: event.endAt || null, location: event.location || null, notes: event.notes || null, responsible_user_id: event.responsibleUserId || null, sync_status: 'not_connected' }).select('*').single();
   if (error) throw error;
-  return String(data.id);
+  return mapCalendarEvent(data as Record<string, unknown>);
+};
+
+export const getOnboardingState = async () => {
+  const { data, error } = await supabase.rpc('get_onboarding_state');
+  if (error) throw error;
+  return data as import('../types').OnboardingState;
+};
+
+export const createOnboardingExampleContact = async (): Promise<Lead> => {
+  const { data, error } = await supabase.rpc('create_onboarding_example_contact');
+  if (error) throw error;
+  return mapLead(data as Record<string, unknown>);
 };
 
 export const updateCalendarEvent = async (eventId: string, updates: Partial<CalendarEvent>) => {

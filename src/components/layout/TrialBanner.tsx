@@ -22,7 +22,7 @@ export const TrialBanner = () => {
   return (
     <div
       className={cn(
-        'border-b px-4 py-2 sm:px-6 lg:px-8',
+        'border-b px-4 py-1.5 sm:px-6 lg:px-8',
         isExpired
           ? 'border-red-200 bg-red-50 text-red-900'
           : isNotConfigured
@@ -43,14 +43,14 @@ export const TrialBanner = () => {
                   ? `Configure o teste comercial de ${TRIAL_DAYS} dias para este escritório.`
                   : isGrace
                     ? 'Pagamento pendente: regularize sua assinatura.'
-                    : `Teste grátis ativo: ${trialState.label}.`}
+                    : `${trialState.label}.`}
             </p>
             <p className="text-xs opacity-80">
               {isExpired
                 ? 'O escritório está em modo somente leitura. Regularize o plano para retomar novos contatos, tarefas e atualizações.'
                 : accessMode === 'grace'
                   ? `Pagamento pendente: ${subscriptionLabel[office?.subscriptionStatus || 'PAST_DUE']}. O acesso completo será mantido durante a tolerância.`
-                  : 'Use este período para validar captação, triagem, retorno pelo WhatsApp e rotina de atendimento.'}
+                  : 'Explore o atendimento inicial, a triagem e o retorno pelo WhatsApp.'}
             </p>
           </div>
         </div>

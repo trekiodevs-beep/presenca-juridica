@@ -3,6 +3,7 @@ import { CheckCircle2, CreditCard, ExternalLink, ShieldCheck } from 'lucide-reac
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { COMMERCIAL_PLANS, getPlan } from '../lib/plans';
@@ -20,6 +21,8 @@ export const Billing = () => {
   const [loadingBilling, setLoadingBilling] = useState(false);
   const [cpfCnpj, setCpfCnpj] = useState('');
   const [usage, setUsage] = useState<UsageCounter | null>(null);
+  const [confirmingCancellation, setConfirmingCancellation] = useState(false);
+  const [billingError, setBillingError] = useState('');
   const currentPlan = getPlan(office?.planCode);
   const accessMode = getAccessMode(office);
   const canManage = user?.role === 'owner' || user?.role === 'admin';
@@ -27,10 +30,11 @@ export const Billing = () => {
   useEffect(() => {
     if (!office?.billingSubscriptionId || !canManage) return;
     setLoadingBilling(true);
+    setBillingError('');
     getBillingSummary().then(summary => {
       setPayments(summary.payments);
       if (['PIX', 'BOLETO', 'CREDIT_CARD'].includes(summary.billingType || '')) setBillingType(summary.billingType as 'PIX' | 'BOLETO' | 'CREDIT_CARD');
-    }).catch(console.error).finally(() => setLoadingBilling(false));
+    }).catch(error => { console.error(error); setBillingError('Não foi possível carregar as cobranças. Tente novamente em instantes.'); }).finally(() => setLoadingBilling(false));
   }, [office?.billingSubscriptionId, canManage]);
   useEffect(() => { if (office?.id) getUsageCounter(office.id).then(setUsage).catch(console.error); }, [office?.id]);
 
@@ -61,13 +65,17 @@ export const Billing = () => {
   };
 
   const handleCancel = async () => {
-    if (!canManage || !window.confirm('Cancelar a assinatura e encerrar novas cobranças? O acesso passará para somente leitura.')) return;
+    if (!canManage) return;
+    setLoadingBilling(true);
     try {
       await cancelSubscription();
       showToast('Solicitação de cancelamento registrada.', 'success');
     } catch (error) {
       console.error(error);
-      showToast('Não foi possível cancelar a assinatura agora.', 'error');
+      showToast('Não foi possível cancelar a assinatura agora.', 'error', { durationMs: null });
+    } finally {
+      setLoadingBilling(false);
+      setConfirmingCancellation(false);
     }
   };
 
@@ -122,7 +130,7 @@ export const Billing = () => {
         <CardContent className="flex flex-col gap-4 text-sm text-slate-600 md:flex-row md:items-center md:justify-between">
           <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 text-emerald-600" /><p>O pagamento é processado pelo provedor. Os segredos e webhooks ficam no backend; nenhum token de cobrança é exposto no navegador.</p></div>
           <div className="flex gap-2">
-            {office?.billingSubscriptionId && office.subscriptionStatus !== 'CANCELED' && <Button variant="outline" onClick={handleCancel} disabled={!canManage}>Cancelar assinatura</Button>}
+            {office?.billingSubscriptionId && office.subscriptionStatus !== 'CANCELED' && <Button variant="outline" onClick={() => setConfirmingCancellation(true)} disabled={!canManage}>Cancelar assinatura</Button>}
             <Button variant="outline" onClick={() => window.open('mailto:suporte@trekio.com.br?subject=Suporte%20de%20cobrança', '_blank')}><ExternalLink className="mr-2 h-4 w-4" />Suporte</Button>
           </div>
         </CardContent>
@@ -131,9 +139,11 @@ export const Billing = () => {
         <CardHeader><CardTitle>Forma de pagamento e cobranças</CardTitle></CardHeader>
         <CardContent className="space-y-5">
           <div className="flex flex-col gap-3 md:flex-row md:items-end"><label className="flex-1 text-sm font-medium text-slate-700">Forma de pagamento<select className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3" value={billingType} onChange={event => setBillingType(event.target.value as typeof billingType)}><option value="PIX">Pix</option><option value="BOLETO">Boleto</option><option value="CREDIT_CARD">Cartão pelo ambiente seguro do Asaas</option></select></label><Button variant="outline" disabled={loadingBilling} onClick={handleBillingMethod}>Salvar forma de pagamento</Button></div>
-          <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b text-xs uppercase text-slate-500"><th className="py-2">Vencimento</th><th>Status</th><th>Valor</th><th className="text-right">Documento</th></tr></thead><tbody>{payments.map(payment => <tr key={payment.id} className="border-b border-slate-100"><td className="py-3">{payment.dueDate ? new Date(`${payment.dueDate}T12:00:00`).toLocaleDateString('pt-BR') : '—'}</td><td>{payment.status}</td><td>{payment.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td><td className="text-right">{(payment.bankSlipUrl || payment.invoiceUrl) ? <a className="font-semibold text-brand-700" href={payment.bankSlipUrl || payment.invoiceUrl || '#'} target="_blank" rel="noreferrer">Abrir 2ª via</a> : '—'}</td></tr>)}</tbody></table>{!loadingBilling && payments.length === 0 && <p className="py-5 text-center text-sm text-slate-500">Nenhuma cobrança gerada.</p>}</div>
+          {billingError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{billingError}</p>}
+          <div className="overflow-x-auto"><table className="min-w-[520px] w-full text-left text-sm"><thead><tr className="border-b text-xs uppercase text-slate-500"><th className="py-2">Vencimento</th><th>Status</th><th>Valor</th><th className="text-right">Documento</th></tr></thead><tbody>{payments.map(payment => <tr key={payment.id} className="border-b border-slate-100"><td className="py-3">{payment.dueDate ? new Date(`${payment.dueDate}T12:00:00`).toLocaleDateString('pt-BR') : '—'}</td><td>{payment.status}</td><td>{payment.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td><td className="text-right">{(payment.bankSlipUrl || payment.invoiceUrl) ? <a className="font-semibold text-brand-700" href={payment.bankSlipUrl || payment.invoiceUrl || '#'} target="_blank" rel="noreferrer">Abrir 2ª via</a> : '—'}</td></tr>)}</tbody></table>{!loadingBilling && !billingError && payments.length === 0 && <p className="py-5 text-center text-sm text-slate-500">Nenhuma cobrança gerada.</p>}</div>
         </CardContent>
       </Card>}
+      <ConfirmDialog open={confirmingCancellation} title="Cancelar assinatura?" description="Novas cobranças serão encerradas e o escritório passará para acesso somente leitura conforme as regras do plano." confirmLabel="Cancelar assinatura" variant="danger" loading={loadingBilling} onCancel={() => setConfirmingCancellation(false)} onConfirm={handleCancel} />
     </div>
   );
 };

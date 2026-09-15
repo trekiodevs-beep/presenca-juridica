@@ -108,7 +108,7 @@ Escritórios criados a partir desta versão recebem `planCode`, `limits`, `trial
 
 O build e os testes locais não comprovam publicação, credenciais Asaas, configuração de App Check, banco nomeado, regras remotas, webhook recebido, e-mail enviado ou restauração de backup. Esses itens continuam sendo gates de homologação.
 
-Runbooks: [deploy de produção](docs/deploy-producao.md), [operação SaaS](docs/saas-operacao.md), [backup/restauração](docs/backup-restore.md), [resposta a incidentes](docs/incident-response.md), [anexo de operador](docs/data-processing-agreement-template.md) e [checklist de release](docs/release-checklist.md). Os textos legais incluídos no produto precisam de revisão jurídica antes do uso comercial.
+Runbooks: [interface, feedback e responsividade](docs/interface-feedback-responsividade.md), [deploy de produção](docs/deploy-producao.md), [operação SaaS](docs/saas-operacao.md), [backup/restauração](docs/backup-restore.md), [resposta a incidentes](docs/incident-response.md), [anexo de operador](docs/data-processing-agreement-template.md) e [checklist de release](docs/release-checklist.md). Os textos legais incluídos no produto precisam de revisão jurídica antes do uso comercial.
 
 ## Checklist antes de divulgar
 
@@ -121,5 +121,8 @@ Runbooks: [deploy de produção](docs/deploy-producao.md), [operação SaaS](doc
 - Upload de documento validado.
 - Portal do cliente validado.
 - Isolamento entre escritorios validado.
+- Interface validada em celular, tablet e desktop.
+- Feedback, rollback e prevenção de duplo envio validados.
+- Realtime validado entre duas sessões, com recuperação após desconexão.
 
 Documentação específica: [operação Google Calendar](docs/calendar-google-operacao.md).

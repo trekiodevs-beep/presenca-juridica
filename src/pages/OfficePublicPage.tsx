@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { getPublicFormBySlug } from '../services/supabaseDb';
-import { PublicForm as PublicFormType } from '../types';
+import { PublicFormPublic as PublicFormType } from '../types';
 import { Building2, MessageSquare, ShieldAlert, MapPin, Scale, ChevronRight, Info } from 'lucide-react';
 import { PublicContactForm } from '../components/PublicContactForm';
 import { formatPhoneForWhatsapp } from '../lib/utils';

@@ -37,7 +37,7 @@ export const Layout = () => {
   // Close mobile menu if resized to desktop
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth >= 768) {
+      if (window.innerWidth >= 1024) {
         setIsMobileMenuOpen(false);
       }
     };
@@ -111,7 +111,7 @@ export const Layout = () => {
   }
 
   const handleToggleSidebar = () => {
-    if (window.innerWidth < 768) {
+    if (window.innerWidth < 1024) {
       setIsMobileMenuOpen(!isMobileMenuOpen);
     } else {
       setIsSidebarCollapsed(prev => {
@@ -129,7 +129,7 @@ export const Layout = () => {
 
       {/* Mobile Drawer Sidebar */}
       {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-40 md:hidden flex">
+        <div className="fixed inset-0 z-40 lg:hidden flex">
           {/* Overlay */}
           <div 
             className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm transition-opacity"

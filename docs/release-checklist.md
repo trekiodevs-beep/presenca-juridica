@@ -6,6 +6,7 @@
 - [ ] VITE_BACKEND_PROVIDER=supabase e VITE_USE_MOCK_DATA=false.
 - [ ] Migrations aplicadas no projeto correto.
 - [ ] Auth URLs, redirect URLs, Storage e Realtime configurados.
+- [ ] Migration `20260915000100_core_realtime.sql` aplicada e publicação das tabelas confirmada.
 - [ ] Secrets das Edge Functions configurados somente no backend.
 - [ ] OAuth Google Calendar configurado para local e Cloud.
 - [ ] Scheduler do calendar-sync-worker configurado e protegido.
@@ -22,6 +23,13 @@
 - [ ] Inbox, suporte autorizado, expiração e auditoria validados.
 - [ ] LGPD, logs, backup e restauração validados.
 - [ ] HTTPS, monitoramento e alertas configurados.
+- [ ] Kanban atualiza sem recarregar e restaura a situação anterior quando a API falha.
+- [ ] Realtime validado entre duas sessões; polling e retorno à aba recuperam desconexões.
+- [ ] `npm run test:realtime` aprovado no ambiente-alvo.
+- [ ] Viewports de 390x844, intermediário abaixo de 1024px e desktop sem overflow global.
+- [ ] Ações essenciais funcionam por toque e teclado, sem depender de hover ou drag-and-drop.
+- [ ] Toasts, erros inline, diálogos, foco, `Escape` e prevenção de duplo envio validados.
+- [ ] Android e iOS reais homologados ou explicitamente marcados como não comprovados.
 
 ## Go/no-go
 

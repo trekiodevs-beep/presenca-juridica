@@ -40,6 +40,7 @@ export const Finance = () => {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Pix');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [updatingRecordId, setUpdatingRecordId] = useState<string | null>(null);
 
   const metrics = useMemo(() => {
     return financialRecords.reduce(
@@ -100,11 +101,21 @@ export const Finance = () => {
     }
   };
 
-  const handleStatusChange = (recordId: string, nextStatus: FinancialRecordStatus) => {
-    updateFinancialRecord(recordId, {
-      status: nextStatus,
-      paidAt: nextStatus === 'Pago' ? new Date().toISOString() : null,
-    });
+  const handleStatusChange = async (recordId: string, nextStatus: FinancialRecordStatus) => {
+    if (updatingRecordId) return;
+    setUpdatingRecordId(recordId);
+    try {
+      await updateFinancialRecord(recordId, {
+        status: nextStatus,
+        paidAt: nextStatus === 'Pago' ? new Date().toISOString() : null,
+      });
+      showToast(`Lançamento marcado como ${nextStatus.toLowerCase()}.`, 'success');
+    } catch (error) {
+      console.error(error);
+      showToast('Não foi possível atualizar o lançamento financeiro.', 'error', { durationMs: null });
+    } finally {
+      setUpdatingRecordId(null);
+    }
   };
 
   return (
@@ -199,7 +210,8 @@ export const Finance = () => {
                       <p className="text-xl font-bold text-slate-950 xl:text-right">{currencyFormatter.format(record.amount)}</p>
                       <Select
                         value={record.status}
-                        onChange={(event) => handleStatusChange(record.id, event.target.value as FinancialRecordStatus)}
+                        onChange={(event) => void handleStatusChange(record.id, event.target.value as FinancialRecordStatus)}
+                        disabled={updatingRecordId === record.id}
                         className="w-full"
                       >
                         {recordStatuses.map(item => <option key={item} value={item}>{item}</option>)}

@@ -261,7 +261,7 @@ export const Settings = () => {
               </p>
               <p className="mt-1 text-sm text-slate-500">
                 {office
-                  ? 'O teste permite validar captação, triagem, histórico e retorno pelo WhatsApp antes da contratação.'
+                  ? 'O teste permite validar atendimento inicial, triagem, histórico e retorno pelo WhatsApp antes da contratação.'
                   : 'Ao criar o escritório, o período de teste começa automaticamente.'}
               </p>
             </div>
@@ -340,7 +340,7 @@ export const Settings = () => {
                 />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Slug Público do Escritório</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Endereço público do escritório</label>
                 <div className="flex rounded-md shadow-sm">
                   <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-slate-300 bg-slate-50 text-slate-500 sm:text-sm">
                     /public/
@@ -357,12 +357,12 @@ export const Settings = () => {
                 </div>
                 <p className="mt-1.5 text-xs text-slate-500 flex items-center gap-1">
                   <LinkIcon className="w-3.5 h-3.5" />
-                  Link público do seu formulário de contato. Use apenas letras minúsculas, números e hífen.
+                  Escolha a parte personalizada dos seus links. Use apenas letras minúsculas, números e hífen.
                 </p>
 
-                {(formData.slug || office?.slug) && (
+                {office?.slug ? (
                   <div className="mt-6 p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
-                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Links Plug and Play Prontos</h4>
+                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Links públicos ativos</h4>
                     
                     {/* Link 1: Página Pública */}
                     <div className="space-y-1.5">
@@ -374,14 +374,14 @@ export const Settings = () => {
                         <div className="flex gap-2">
                           <button 
                             type="button"
-                            onClick={() => handleCopyText(`${window.location.origin}/o/${formData.slug || office?.slug}`, 'pub')}
+                            onClick={() => handleCopyText(`${window.location.origin}/o/${office.slug}`, 'pub')}
                             className="text-brand-700 hover:text-brand-900 flex items-center gap-1 font-semibold"
                           >
                             {copiedKey === 'pub' ? 'Link copiado com sucesso.' : 'Copiar'}
                           </button>
                           <span className="text-slate-300">|</span>
                           <a 
-                            href={`${window.location.origin}/o/${formData.slug || office?.slug}`} 
+                            href={`${window.location.origin}/o/${office.slug}`}
                             target="_blank" 
                             rel="noopener noreferrer"
                             className="text-brand-700 hover:text-brand-900 flex items-center gap-1 font-semibold"
@@ -391,7 +391,7 @@ export const Settings = () => {
                         </div>
                       </div>
                       <p className="text-xs text-slate-500 font-mono bg-white p-2 rounded border border-slate-100 truncate">
-                        {`${window.location.origin}/o/${formData.slug || office?.slug}`}
+                        {`${window.location.origin}/o/${office.slug}`}
                       </p>
                     </div>
 
@@ -405,14 +405,14 @@ export const Settings = () => {
                         <div className="flex gap-2">
                           <button 
                             type="button"
-                            onClick={() => handleCopyText(`${window.location.origin}/public/${formData.slug || office?.slug}/contact`, 'form')}
+                            onClick={() => handleCopyText(`${window.location.origin}/public/${office.slug}/contact`, 'form')}
                             className="text-brand-700 hover:text-brand-900 flex items-center gap-1 font-semibold"
                           >
                             {copiedKey === 'form' ? 'Link copiado com sucesso.' : 'Copiar'}
                           </button>
                           <span className="text-slate-300">|</span>
                           <a 
-                            href={`${window.location.origin}/public/${formData.slug || office?.slug}/contact`} 
+                            href={`${window.location.origin}/public/${office.slug}/contact`}
                             target="_blank" 
                             rel="noopener noreferrer"
                             className="text-brand-700 hover:text-brand-900 flex items-center gap-1 font-semibold"
@@ -422,11 +422,15 @@ export const Settings = () => {
                         </div>
                       </div>
                       <p className="text-xs text-slate-500 font-mono bg-white p-2 rounded border border-slate-100 truncate">
-                        {`${window.location.origin}/public/${formData.slug || office?.slug}/contact`}
+                        {`${window.location.origin}/public/${office.slug}/contact`}
                       </p>
                     </div>
 
                   </div>
+                ) : (
+                  <p className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3 text-sm text-slate-600">
+                    Salve os dados do escritório para gerar e ativar seus links públicos.
+                  </p>
                 )}
               </div>
             </div>

@@ -1,373 +1,76 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ArrowRight, CheckCircle2, Copy, ExternalLink, HelpCircle, MessageSquare, Play, Rocket, Settings2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Button } from '../components/ui/Button';
+import { PageHeader } from '../components/layout/PageHeader';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useToast } from '../context/ToastContext';
-import { Button } from '../components/ui/Button';
-import { CheckCircle2, ChevronRight, Copy, ExternalLink, Play, Clock, MessageSquare, ArrowRight, Rocket } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { getOnboardingState } from '../services/supabaseDb';
+import type { OnboardingState } from '../types';
 import { cn } from '../lib/utils';
-import { PageHeader } from '../components/layout/PageHeader';
-import { LeadSource, LeadStatus, Priority, LegalArea } from '../types';
-import { getUsageCounter, updateOffice } from '../services/supabaseDb';
-import type { UsageCounter } from '../types';
-import { supabase } from '../lib/supabase';
+
+const USE_MOCK = import.meta.env.VITE_USE_MOCK_DATA === 'true';
 
 export const Onboarding = () => {
-  const { office, user, setOffice } = useAuth();
-  const { leads, events, tasks, calendarEvents, portalAccesses, addLead } = useData();
+  const { office } = useAuth();
+  const { leads, tasks, calendarEvents, createOnboardingExampleContact } = useData();
   const { showToast } = useToast();
-  const navigate = useNavigate();
-  const [usage, setUsage] = useState<UsageCounter | null>(null);
-  const [isCalendarConnected, setIsCalendarConnected] = useState(false);
-  useEffect(() => { if (office?.id) getUsageCounter(office.id).then(setUsage).catch(console.error); }, [office?.id]);
+  const [remoteState, setRemoteState] = useState<OnboardingState | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [creatingExample, setCreatingExample] = useState(false);
+
+  const localState = useMemo<OnboardingState>(() => {
+    const officeReady = Boolean(office?.name && office.lawyerName && office.whatsapp && office.slug && office.areas?.length);
+    const firstContactReady = leads.some(lead => !lead.archivedAt);
+    const firstActionReady = tasks.length > 0 || calendarEvents.some(event => !event.deletedAt) || leads.some(lead => lead.nextActionAt);
+    return { version: 2, officeId: office?.id || '', milestones: { officeReady, firstContactReady, firstActionReady }, optional: { googleCalendarConnected: false }, nextAction: !officeReady ? 'office' : !firstContactReady ? 'first_contact' : !firstActionReady ? 'first_action' : 'activated', recommendations: [] };
+  }, [calendarEvents, leads, office, tasks]);
+
+  const state = remoteState || localState;
+  const milestones = [
+    { key: 'officeReady', title: 'Prepare o espaço', description: 'Nome, responsável, WhatsApp e link público para o sistema saber como apresentar seu atendimento.', href: '/settings', action: 'Configurar espaço', icon: Settings2 },
+    { key: 'firstContactReady', title: 'Conheça o fluxo com um contato', description: 'Use um exemplo seguro ou receba seu primeiro contato. Nada real é enviado automaticamente.', href: '/onboarding', action: 'Criar exemplo', icon: MessageSquare },
+    { key: 'firstActionReady', title: 'Registre a próxima providência', description: 'Uma tarefa ou compromisso transforma o contato em trabalho organizado.', href: '/tarefas', action: 'Registrar providência', icon: ArrowRight },
+  ] as const;
+  const completed = milestones.filter(item => state.milestones[item.key]).length;
+  const activeIndex = milestones.findIndex(item => !state.milestones[item.key]);
+  const nextIndex = activeIndex < 0 ? milestones.length - 1 : activeIndex;
+  const testContact = leads.find(lead => lead.createdVia === 'onboarding_example');
+
   useEffect(() => {
-    if (!office?.id) return;
+    if (USE_MOCK || !office?.id) { setLoading(false); return; }
     let cancelled = false;
-    void supabase.functions.invoke('calendar-connection-status', { method: 'GET' }).then(({ data, error }) => {
-      if (!cancelled && !error) setIsCalendarConnected(data?.connection?.status === 'active');
-    });
+    setLoading(true);
+    void getOnboardingState().then(result => { if (!cancelled) setRemoteState(result); }).catch(error => { console.error('Onboarding state unavailable:', error); showToast('Não conseguimos atualizar o progresso agora. Mostrando o estado local.', 'error'); }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [office?.id]);
+  }, [office?.id, showToast]);
 
-  // 1. Profile Complete
-  const isProfileComplete = Boolean(
-    office && 
-    office.name && 
-    office.lawyerName && 
-    office.whatsapp && 
-    office.slug && 
-    office.areas && 
-    office.areas.length > 0
-  );
-
-  // 2. Public Link Ready
-  const isPublicLinkReady = Boolean(office && office.slug);
-
-  // 3. Test Contact Created
-  const testContact = leads.find(l => l.source === 'Teste de Onboarding' || l.createdVia === 'onboarding_test');
-  const isTestContactCreated = Boolean(testContact);
-
-  // 4. Today Screen Validated
-  const isTodayValidated = leads.length > 0;
-
-  // 5. WhatsApp Validated
-  const isWhatsappValidated = events.some(e => e.type === 'whatsapp_opened') || leads.some(l => l.lastWhatsappClickAt != null);
-  const isTeamConfigured = Number(usage?.users || 0) > 1;
-  const hasTask = tasks.length > 0;
-  const hasCalendarEvent = calendarEvents.length > 0;
-  const hasPortal = portalAccesses.length > 0;
-
-  const steps = [
-    { completed: isProfileComplete },
-    { completed: isPublicLinkReady },
-    { completed: isTeamConfigured },
-    { completed: isTestContactCreated },
-    { completed: hasTask },
-    { completed: isCalendarConnected },
-    { completed: hasCalendarEvent },
-    { completed: hasPortal },
-    { completed: isTodayValidated },
-    { completed: isWhatsappValidated },
-  ];
-
-  const completedSteps = steps.filter(s => s.completed).length;
-  const progressPercent = (completedSteps / steps.length) * 100;
-  const isAllDone = completedSteps === steps.length;
-  useEffect(() => {
-    if (isAllDone && office?.id && !office.onboardingCompletedAt) {
-      const completedAt = new Date().toISOString();
-      updateOffice(office.id, { onboardingCompletedAt: completedAt })
-        .then(() => setOffice({ ...office, onboardingCompletedAt: completedAt }))
-        .catch(console.error);
-    }
-  }, [isAllDone, office?.id, office?.onboardingCompletedAt]);
-
-  const handleCopyLink = () => {
-    if (!office?.slug) return;
-    const url = `${window.location.origin}/o/${office.slug}`;
-    navigator.clipboard.writeText(url);
-    showToast('Link público copiado com sucesso.', 'success');
+  const refreshState = async () => { if (!USE_MOCK) { try { setRemoteState(await getOnboardingState()); } catch (error) { console.error(error); } } };
+  const handleCreateExample = async () => {
+    if (creatingExample) return;
+    setCreatingExample(true);
+    try { await createOnboardingExampleContact(); await refreshState(); showToast('Exemplo criado. Agora abra o contato e registre uma ação.', 'success'); }
+    catch (error) { console.error(error); showToast('Não foi possível criar o exemplo. Tente novamente.', 'error'); }
+    finally { setCreatingExample(false); }
   };
-
-  const handleCreateTestContact = async () => {
-    if (!office) return;
-    
-    try {
-      await addLead({
-        name: 'Contato de Teste',
-        phone: office.whatsapp || '5535999999999',
-        email: '',
-        city: office.city || '',
-        state: office.state || '',
-        source: 'Teste de Onboarding' as LeadSource,
-        area: (office.areas && office.areas.length > 0 ? office.areas[0] : 'Outro') as LegalArea,
-        status: 'Novo contato' as LeadStatus,
-        priority: 'Média' as Priority,
-        summary: 'Contato criado para validar a jornada de onboarding do CRM.',
-        notes: '',
-        consentLgpd: true,
-        createdVia: 'onboarding_test',
-        publicFormSlug: office.slug
-      });
-      showToast('Contato de teste criado com sucesso.', 'success');
-    } catch (error) {
-      console.error(error);
-      showToast('Erro ao criar contato de teste.', 'error');
-    }
-  };
+  const copyPublicLink = async () => { if (!office?.slug) return; await navigator.clipboard.writeText(`${window.location.origin}/o/${office.slug}`); showToast('Link público copiado.', 'success'); };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto px-4 sm:px-6 pb-12">
-      <PageHeader
-        title="Primeiros passos"
-        description="Configure seu escritório e valide a entrada de contatos no CRM em poucos minutos."
-      />
-
-      {/* Progress Bar Section */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-        <div className="flex justify-between items-end mb-3">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-900">Progresso da configuração</h3>
-            <p className="text-xs text-slate-500 mt-1">{completedSteps} de {steps.length} etapas concluídas</p>
-          </div>
-          {isAllDone && (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Concluído
-            </span>
-          )}
-        </div>
-        <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-brand-600 rounded-full transition-all duration-500 ease-in-out" 
-            style={{ width: `${progressPercent}%` }}
-          />
-        </div>
-      </div>
-
-      {isAllDone && (
-        <div className="bg-brand-50 border border-brand-200 p-6 rounded-2xl">
-          <h2 className="text-lg font-bold text-brand-900 mb-2 flex items-center gap-2">
-            <Rocket className="w-5 h-5 text-brand-600" /> Seu CRM está pronto para receber contatos.
-          </h2>
-          <p className="text-brand-700 text-sm mb-6">
-            Agora você pode usar seu link público no Instagram, WhatsApp, site ou landing page. Quando alguém preencher o formulário, a solicitação aparecerá automaticamente na aba Hoje.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <Button asChild className="bg-brand-700 hover:bg-brand-800">
-              <Link to="/canais">Ir para Canais de entrada</Link>
-            </Button>
-            <Button variant="outline" onClick={handleCopyLink} className="gap-2 bg-white text-brand-700 border-brand-200 hover:bg-brand-100">
-              <Copy className="w-4 h-4" /> Copiar link público
-            </Button>
-            <Button variant="ghost" asChild className="text-brand-700 hover:text-brand-800 hover:bg-brand-100">
-              <Link to="/">Ver aba Hoje</Link>
-            </Button>
-          </div>
-        </div>
-      )}
-
-      <div className="space-y-4">
-        {/* Step 1 */}
-        <StepCard
-          title="Complete o perfil do escritório"
-          description="Esses dados são usados para gerar sua página pública, formulário e mensagens de atendimento."
-          isCompleted={isProfileComplete}
-          microcopy="Evite solicitar dados sensíveis no primeiro contato."
-        >
-          {isProfileComplete ? (
-            <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
-              <CheckCircle2 className="w-4 h-4" /> Perfil configurado
-            </span>
-          ) : (
-            <Button asChild className="gap-2">
-              <Link to="/settings">
-                Ir para Configurações <ChevronRight className="w-4 h-4" />
-              </Link>
-            </Button>
-          )}
-        </StepCard>
-
-        {/* Step 2 */}
-        <StepCard
-          title="Copie seu link público"
-          description="Use este link no Instagram, WhatsApp, site ou redes sociais. O cliente não acessa o CRM; ele apenas envia o formulário público."
-          isCompleted={isPublicLinkReady}
-          microcopy="Você pode usar esse link mesmo sem ter site. A landing page é um upgrade, não um pré-requisito."
-        >
-          {isPublicLinkReady ? (
-            <div className="space-y-3">
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 font-mono text-xs sm:text-sm text-slate-600 break-all select-all">
-                {window.location.origin}/o/{office?.slug}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button onClick={handleCopyLink} className="gap-2 shrink-0">
-                  <Copy className="w-4 h-4" /> Copiar link
-                </Button>
-                <Button variant="outline" asChild className="gap-2 shrink-0">
-                  <a href={`/o/${office?.slug}`} target="_blank" rel="noopener noreferrer">
-                    Abrir página pública <ExternalLink className="w-4 h-4" />
-                  </a>
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-sm font-medium text-amber-600">Configure o slug público nas Configurações para gerar seu link.</p>
-              <Button variant="outline" asChild>
-                <Link to="/settings">Configurar slug</Link>
-              </Button>
-            </div>
-          )}
-        </StepCard>
-
-        {/* Step 3 */}
-        <StepCard title="Convide uma pessoa da equipe" description="Valide o acesso multiusuário com uma conta individual e o menor perfil necessário." isCompleted={isTeamConfigured}><Button asChild variant="outline"><Link to="/equipe">Gerenciar equipe</Link></Button></StepCard>
-
-        {/* Step 4 */}
-        <StepCard
-          title="Envie um contato de teste"
-          description="Valide a jornada completa simulando uma pessoa entrando pelo seu link público."
-          isCompleted={isTestContactCreated}
-        >
-          {isTestContactCreated ? (
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
-                <CheckCircle2 className="w-4 h-4" /> Contato de teste criado
-              </span>
-              <Button variant="outline" asChild size="sm">
-                <Link to="/">Ver na aba Hoje</Link>
-              </Button>
-              {testContact && (
-                <Button variant="ghost" asChild size="sm">
-                  <Link to={`/leads/${testContact.id}`}>Abrir contato</Link>
-                </Button>
-              )}
-            </div>
-          ) : (
-            <Button onClick={handleCreateTestContact} disabled={!isPublicLinkReady} className="gap-2">
-              <Play className="w-4 h-4" /> Criar contato de teste
-            </Button>
-          )}
-        </StepCard>
-
-        <StepCard title="Crie a primeira tarefa" description="Registre a próxima providência para que o atendimento não dependa de memória." isCompleted={hasTask}><Button asChild variant="outline"><Link to="/tarefas">Ir para tarefas</Link></Button></StepCard>
-
-        <StepCard title="Conecte a Google Agenda" description="Depois que o escritório estiver criado, autorize a agenda que receberá os compromissos do CRM." isCompleted={isCalendarConnected}><Button asChild variant="outline"><Link to="/settings#integrations">Configurar Google Agenda</Link></Button></StepCard>
-
-        <StepCard title="Registre um compromisso" description="Inclua uma consulta, retorno ou prazo na agenda do escritório." isCompleted={hasCalendarEvent}><Button asChild variant="outline"><Link to="/agenda">Ir para agenda</Link></Button></StepCard>
-
-        <StepCard title="Ative um portal de cliente" description="Publique apenas informações selecionadas e valide o acesso temporário do cliente." isCompleted={hasPortal}><Button asChild variant="outline"><Link to="/portal">Configurar portal</Link></Button></StepCard>
-
-        {/* Step 4 */}
-        <StepCard
-          title="Confira a aba Hoje"
-          description="A aba Hoje mostra as solicitações que precisam de triagem inicial, retorno ou próxima providência."
-          isCompleted={isTodayValidated}
-          microcopy="Quando um cliente real preencher seu formulário, ele aparecerá aqui aguardando triagem."
-        >
-          {isTodayValidated ? (
-             <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
-               <CheckCircle2 className="w-4 h-4" /> Contatos visualizados
-             </span>
-          ) : (
-            <Button asChild variant="outline" className="gap-2">
-              <Link to="/">
-                Ver aba Hoje <ArrowRight className="w-4 h-4" />
-              </Link>
-            </Button>
-          )}
-        </StepCard>
-
-        {/* Step 5 */}
-        <StepCard
-          title="Retorne pelo WhatsApp com histórico"
-          description="Abra o contato no sistema, clique em WhatsApp e registre uma anotação. Assim o atendimento inicial fica rastreável."
-          isCompleted={isWhatsappValidated}
-          microcopy="O sistema não envia mensagens automáticas. Ele abre o WhatsApp com uma mensagem humanizada e registra a providência no histórico."
-        >
-          {isWhatsappValidated ? (
-            <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
-              <CheckCircle2 className="w-4 h-4" /> WhatsApp validado
-            </span>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              <Button asChild variant="outline" className="gap-2">
-                <Link to="/leads">Ver contatos</Link>
-              </Button>
-              {testContact && (
-                <Button asChild className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
-                  <Link to={`/leads/${testContact.id}`}>
-                    <MessageSquare className="w-4 h-4" /> Abrir contato de teste
-                  </Link>
-                </Button>
-              )}
-            </div>
-          )}
-        </StepCard>
-
-      </div>
+    <div className="mx-auto max-w-4xl space-y-6 px-4 pb-12 sm:px-6">
+      <PageHeader title="Vamos deixar seu espaço pronto" description="Siga só os três passos essenciais. O restante pode ser configurado quando fizer sentido para você." />
+      <section className="rounded-2xl border border-brand-200 bg-brand-50 p-5 shadow-sm sm:p-7" aria-labelledby="activation-title">
+        <div className="flex items-start gap-4"><div className="rounded-full bg-white p-3 text-brand-700"><Rocket className="h-6 w-6" aria-hidden="true" /></div><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-brand-700">{loading ? 'Atualizando seu progresso…' : `${completed} de 3 passos essenciais`}</p><h2 id="activation-title" className="mt-1 text-2xl font-bold tracking-tight text-slate-950">{state.nextAction === 'activated' ? 'Seu espaço está pronto para trabalhar.' : 'Comece pelo próximo passo.'}</h2><p className="mt-2 max-w-2xl text-base leading-7 text-slate-700">Você não precisa entender todas as configurações agora. Faça uma coisa por vez; o sistema acompanha o que falta.</p></div></div>
+        <div className="mt-5 h-3 overflow-hidden rounded-full bg-white" role="progressbar" aria-valuenow={completed} aria-valuemin={0} aria-valuemax={3} aria-label="Progresso dos passos essenciais"><div className="h-full rounded-full bg-brand-700 transition-all" style={{ width: `${(completed / 3) * 100}%` }} /></div>
+      </section>
+      <section className="space-y-4" aria-labelledby="steps-title"><div><h2 id="steps-title" className="text-xl font-bold text-slate-950">Passos essenciais</h2><p className="mt-1 text-base text-slate-600">A próxima providência fica destacada para você não se perder.</p></div>
+        {milestones.map((item, index) => { const isCompleted = state.milestones[item.key]; const isNext = !isCompleted && index === nextIndex; const Icon = item.icon; return <article key={item.key} className={cn('rounded-2xl border bg-white p-5 shadow-sm sm:p-6', isNext ? 'border-brand-400 ring-2 ring-brand-100' : isCompleted ? 'border-emerald-200' : 'border-slate-200')}><div className="flex gap-4"><div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-full', isCompleted ? 'bg-emerald-100 text-emerald-700' : isNext ? 'bg-brand-100 text-brand-700' : 'bg-slate-100 text-slate-500')}>{isCompleted ? <CheckCircle2 className="h-6 w-6" aria-hidden="true" /> : <Icon className="h-6 w-6" aria-hidden="true" />}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-bold text-slate-950">{index + 1}. {item.title}</h3>{isCompleted && <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-800">Concluído</span>}{isNext && <span className="rounded-full bg-brand-100 px-2.5 py-1 text-xs font-bold text-brand-800">Próximo passo</span>}</div><p className="mt-1 text-base leading-7 text-slate-600">{item.description}</p><div className="mt-4 flex flex-wrap gap-3">{item.key === 'firstContactReady' && !isCompleted ? <Button type="button" size="lg" onClick={handleCreateExample} disabled={creatingExample} className="gap-2"><Play className="h-5 w-5" aria-hidden="true" />{creatingExample ? 'Criando…' : item.action}</Button> : <Button asChild size="lg" variant={isNext ? 'default' : 'outline'}><Link to={item.href}>{isCompleted ? 'Abrir etapa' : item.action}<ArrowRight className="ml-2 h-5 w-5" aria-hidden="true" /></Link></Button>}{item.key === 'firstContactReady' && testContact && <Button asChild size="lg" variant="outline"><Link to={`/leads/${testContact.id}`}>Abrir exemplo</Link></Button>}</div></div></div></article>; })}
+      </section>
+      {state.nextAction === 'activated' && <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 sm:p-6"><h2 className="flex items-center gap-2 text-xl font-bold text-emerald-950"><CheckCircle2 className="h-6 w-6" aria-hidden="true" />Pronto para receber contatos</h2><p className="mt-2 text-base leading-7 text-emerald-900">Agora você pode divulgar seu link. O sistema continuará sugerindo melhorias sem bloquear seu trabalho.</p>{office?.slug && <div className="mt-4 flex flex-wrap gap-3"><Button type="button" size="lg" onClick={copyPublicLink} className="gap-2"><Copy className="h-5 w-5" aria-hidden="true" />Copiar link público</Button><Button asChild size="lg" variant="outline"><a href={`/o/${office.slug}`} target="_blank" rel="noopener noreferrer">Abrir página pública <ExternalLink className="ml-2 h-5 w-5" aria-hidden="true" /></a></Button></div>}</section>}
+      <details className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><summary className="cursor-pointer list-none text-lg font-bold text-slate-950"><span className="inline-flex items-center gap-2"><HelpCircle className="h-5 w-5 text-brand-700" aria-hidden="true" />Configurações opcionais</span><span className="ml-2 text-sm font-normal text-slate-500">(você pode fazer depois)</span></summary><div className="mt-5 grid gap-3 sm:grid-cols-3"><OptionalLink href="/settings#integrations" title="Google Agenda" text={state.optional.googleCalendarConnected ? 'Conectada' : 'Conecte quando quiser'} /><OptionalLink href="/equipe" title="Equipe" text="Convide pessoas" /><OptionalLink href="/portal" title="Portal do cliente" text="Compartilhe atualizações" /></div></details>
+      <p className="flex items-start gap-2 text-sm leading-6 text-slate-500"><HelpCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />Precisa de ajuda? Comece pelo passo destacado. Se algo não fizer sentido, abra a etapa e o sistema explica o que é necessário.</p>
     </div>
   );
 };
 
-const StepCard = ({ 
-  title, 
-  description, 
-  isCompleted, 
-  microcopy, 
-  children 
-}: { 
-  title: string; 
-  description: string; 
-  isCompleted: boolean; 
-  microcopy?: string; 
-  children: React.ReactNode; 
-}) => {
-  return (
-    <div className={cn(
-      "bg-white p-5 sm:p-6 rounded-2xl border transition-all",
-      isCompleted ? "border-emerald-200 shadow-sm bg-emerald-50/10" : "border-slate-200 shadow-sm hover:border-slate-300"
-    )}>
-      <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
-        <div className="shrink-0 mt-1">
-          {isCompleted ? (
-            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-            </div>
-          ) : (
-            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
-              <div className="w-2.5 h-2.5 rounded-full bg-slate-400" />
-            </div>
-          )}
-        </div>
-        <div className="flex-1 space-y-4">
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h3 className={cn("text-lg font-bold tracking-tight", isCompleted ? "text-slate-900" : "text-slate-900")}>
-                {title}
-              </h3>
-              {isCompleted ? (
-                <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">
-                  Concluído
-                </span>
-              ) : (
-                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-                  Pendente
-                </span>
-              )}
-            </div>
-            <p className="text-slate-600 text-sm leading-relaxed">{description}</p>
-          </div>
-          
-          <div>{children}</div>
-          
-          {microcopy && (
-            <p className="text-xs text-slate-500 bg-slate-50 px-3 py-2 rounded-lg inline-block border border-slate-100">
-              {microcopy}
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
+const OptionalLink = ({ href, title, text }: { href: string; title: string; text: string }) => <Link to={href} className="rounded-xl border border-slate-200 p-4 transition hover:border-brand-300 hover:bg-brand-50"><p className="font-semibold text-slate-900">{title}</p><p className="mt-1 text-sm text-slate-600">{text}</p></Link>;

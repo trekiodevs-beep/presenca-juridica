@@ -90,6 +90,8 @@ supabase functions deploy support-requests
 
 Configure Auth URLs, redirects, Storage policies e Realtime no painel. Confirme que migrations e Functions usam o mesmo `PROJECT_REF`.
 
+Após `supabase db push`, confirme que `leads`, `tasks`, `calendar_events` e `financial_records` pertencem à publicação `supabase_realtime`. A migration versionada responsável é `20260915000100_core_realtime.sql`. A existência do arquivo local não comprova que a publicação remota foi atualizada.
+
 ## 7. Deploy do frontend
 
 O Coolify pode apontar diretamente para o `Dockerfile` da raiz. O `docker/compose.yml` existe para reproduzir localmente o mesmo build e não sobe o Supabase; ele serve apenas o frontend.
@@ -116,6 +118,8 @@ Prove com dois escritórios descartáveis:
 7. retry, idempotência, exclusão, `syncToken`, `410 Gone` e conflitos;
 8. inbox, suporte autorizado, expiração e auditoria;
 9. LGPD, backup, restore, logs e alertas.
+10. interface em celular, tablet e desktop conforme `docs/interface-feedback-responsividade.md`;
+11. atualização otimista, rollback, Realtime entre duas sessões e recuperação após desconexão.
 
 Mock, build-only ou falha de isolamento significa no-go.
 

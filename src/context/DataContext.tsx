@@ -10,6 +10,7 @@ import {
   listenFinancialRecordsByOffice,
   listenClientPortalAccessByOffice,
   createLead,
+  createOnboardingExampleContact as dbCreateOnboardingExampleContact,
   updateLead as dbUpdateLead,
   addLeadEvent as dbAddLeadEvent,
   createTask as dbCreateTask,
@@ -39,6 +40,7 @@ interface DataContextType {
   portalAccesses: ClientPortalAccess[];
   loading: boolean;
   addLead: (lead: Omit<Lead, 'id' | 'createdAt' | 'updatedAt' | 'officeId'>) => Promise<string | undefined>;
+  createOnboardingExampleContact: () => Promise<Lead | undefined>;
   updateLead: (id: string, updates: Partial<Lead>) => Promise<void>;
   addEvent: (event: Omit<LeadEvent, 'id' | 'createdAt' | 'officeId'>) => Promise<void>;
   addTask: (task: Omit<Task, 'id' | 'createdAt' | 'officeId'>) => Promise<string | undefined>;
@@ -185,15 +187,18 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const updateLead = async (id: string, updates: Partial<Lead>) => {
     requirePermission('contacts.write');
     if (USE_MOCK) {
-      setLeads(leads.map(lead => 
-        lead.id === id 
-          ? { ...lead, ...updates, updatedAt: new Date().toISOString() } 
-          : lead
-      ));
+      setLeads(current => current.map(lead => lead.id === id ? { ...lead, ...updates, updatedAt: new Date().toISOString() } : lead));
       return;
     }
-    
-    await dbUpdateLead(id, updates, user?.id || '');
+
+    const previous = leads.find(lead => lead.id === id);
+    if (previous) setLeads(current => current.map(lead => lead.id === id ? { ...lead, ...updates, updatedAt: new Date().toISOString() } : lead));
+    try {
+      await dbUpdateLead(id, updates, user?.id || '');
+    } catch (error) {
+      if (previous) setLeads(current => current.map(lead => lead.id === id ? previous : lead));
+      throw error;
+    }
   };
 
   const addEvent = async (eventData: Omit<LeadEvent, 'id' | 'createdAt' | 'officeId'>) => {
@@ -268,7 +273,14 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    await dbUpdateTask(id, updates);
+    const previous = tasks.find(task => task.id === id);
+    if (previous) setTasks(current => current.map(task => task.id === id ? { ...task, ...updates } : task));
+    try {
+      await dbUpdateTask(id, updates);
+    } catch (error) {
+      if (previous) setTasks(current => current.map(task => task.id === id ? previous : task));
+      throw error;
+    }
   };
 
   const uploadLeadDocument = async (leadId: string, file: File, category: DocumentCategory, visibleInPortal: boolean) => {
@@ -335,7 +347,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         createdAt: now,
         updatedAt: now,
       };
-      setCalendarEvents([...calendarEvents, newEvent].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()));
+      setCalendarEvents(current => [...current.filter(event => event.id !== eventId), newEvent].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()));
       if (eventData.leadId) {
         await addEvent({
           leadId: eventData.leadId,
@@ -347,20 +359,55 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       return eventId;
     }
 
-    const eventId = await dbCreateCalendarEvent({
+    const createdEvent = await dbCreateCalendarEvent({
       ...eventData,
       officeId: office.id,
       responsibleUserId: eventData.responsibleUserId || user?.id || null,
     });
+    setCalendarEvents(current => [...current.filter(event => event.id !== createdEvent.id), createdEvent].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()));
     if (eventData.leadId) {
-      await addEvent({
-        leadId: eventData.leadId,
-        type: 'calendar_event_created',
-        description: `Agenda criada: ${eventData.title}`,
-        createdBy: user?.id || 'Sistema',
-      });
+      try {
+        await addEvent({
+          leadId: eventData.leadId,
+          type: 'calendar_event_created',
+          description: `Agenda criada: ${eventData.title}`,
+          createdBy: user?.id || 'Sistema',
+        });
+      } catch (error) {
+        console.error('Compromisso criado, mas não foi possível registrar o histórico do contato.', error);
+      }
     }
-    return eventId;
+    return createdEvent.id;
+  };
+
+  const createOnboardingExampleContact = async () => {
+    if (!office?.id) return undefined;
+    requirePermission('contacts.write');
+
+    if (USE_MOCK) {
+      const existing = leads.find(lead => lead.createdVia === 'onboarding_example');
+      if (existing) return existing;
+      const createdAt = new Date().toISOString();
+      const example: Lead = {
+        id: `onboarding-${Date.now()}`,
+        officeId: office.id,
+        name: 'Contato de exemplo',
+        phone: '00000000000',
+        email: '', city: office.city || '', state: office.state || '',
+        source: 'Cadastro Manual', area: office.areas?.[0] || 'Outro',
+        status: 'Novo contato', priority: 'Média',
+        summary: 'Contato criado para conhecer a jornada do sistema.',
+        notes: 'Exemplo interno; não representa uma pessoa real.', consentLgpd: false,
+        createdVia: 'onboarding_example', publicFormSlug: office.slug || null,
+        createdAt, updatedAt: createdAt,
+      };
+      setLeads(previous => [example, ...previous]);
+      return example;
+    }
+
+    const example = await dbCreateOnboardingExampleContact();
+    setLeads(previous => previous.some(lead => lead.id === example.id) ? previous : [example, ...previous]);
+    return example;
   };
 
   const updateCalendarEvent = async (id: string, updates: Partial<CalendarEvent>) => {
@@ -369,7 +416,14 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       setCalendarEvents(calendarEvents.map(event => event.id === id ? { ...event, ...updates, updatedAt: new Date().toISOString() } : event));
       return;
     }
-    await dbUpdateCalendarEvent(id, updates);
+    const previous = calendarEvents.find(event => event.id === id);
+    if (previous) setCalendarEvents(current => current.map(event => event.id === id ? { ...event, ...updates, updatedAt: new Date().toISOString() } : event));
+    try {
+      await dbUpdateCalendarEvent(id, updates);
+    } catch (error) {
+      if (previous) setCalendarEvents(current => current.map(event => event.id === id ? previous : event));
+      throw error;
+    }
   };
 
   const deleteCalendarEvent = async (id: string) => {
@@ -428,7 +482,14 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       setFinancialRecords(financialRecords.map(record => record.id === id ? { ...record, ...updates, updatedAt: new Date().toISOString() } : record));
       return;
     }
-    await dbUpdateFinancialRecord(id, updates);
+    const previous = financialRecords.find(record => record.id === id);
+    if (previous) setFinancialRecords(current => current.map(record => record.id === id ? { ...record, ...updates, updatedAt: new Date().toISOString() } : record));
+    try {
+      await dbUpdateFinancialRecord(id, updates);
+    } catch (error) {
+      if (previous) setFinancialRecords(current => current.map(record => record.id === id ? previous : record));
+      throw error;
+    }
   };
 
   const upsertPortalAccess = async (accessData: Omit<ClientPortalAccess, 'id' | 'createdAt' | 'updatedAt' | 'officeId'> & { id?: string }) => {
@@ -490,6 +551,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       portalAccesses,
       loading,
       addLead,
+      createOnboardingExampleContact,
       updateLead,
       addEvent,
       addTask,

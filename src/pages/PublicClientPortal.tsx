@@ -4,7 +4,7 @@ import { CalendarDays, Check, CheckCircle2, Clock3, Download, FileText, LockKeyh
 import { getClientPortalAccessByToken } from '../services/supabaseDb';
 import { ClientPortalAccess } from '../types';
 import { Button } from '../components/ui/Button';
-import { mockPortalAccesses } from '../mockData';
+import { getDemoPortalAccessByToken } from '../lib/demoStore';
 import { getDocumentDownloadUrl } from '../services/supabaseDb';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK_DATA === 'true';
@@ -45,6 +45,7 @@ export const PublicClientPortal = () => {
   const [access, setAccess] = useState<ClientPortalAccess | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloadingDocumentId, setDownloadingDocumentId] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState('');
 
   useEffect(() => {
     let mounted = true;
@@ -57,7 +58,7 @@ export const PublicClientPortal = () => {
 
       try {
         const portalAccess = USE_MOCK
-          ? mockPortalAccesses.find(item => item.id === token) || null
+          ? getDemoPortalAccessByToken(token)
           : await getClientPortalAccessByToken(token);
 
         if (mounted) setAccess(isPortalAccessActive(portalAccess) ? portalAccess : null);
@@ -79,12 +80,13 @@ export const PublicClientPortal = () => {
   const handleDownload = async (documentId: string, fallbackUrl: string) => {
     if (!token) return;
     setDownloadingDocumentId(documentId);
+    setDownloadError('');
     try {
       const result = USE_MOCK ? { downloadUrl: fallbackUrl } : await getDocumentDownloadUrl(documentId, token);
       window.open(result.downloadUrl, '_blank', 'noopener,noreferrer');
     } catch (error) {
       console.error(error);
-      window.alert('Não foi possível autorizar este documento.');
+      setDownloadError('Não foi possível autorizar este documento. Verifique sua conexão e tente novamente.');
     } finally {
       setDownloadingDocumentId(null);
     }
@@ -223,6 +225,7 @@ export const PublicClientPortal = () => {
             <div><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Arquivos compartilhados</p><h2 className="mt-1 text-xl font-bold text-slate-950">Seus documentos</h2></div>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{access.documents.length} disponível(is)</span>
           </div>
+          {downloadError && <p role="alert" aria-live="assertive" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{downloadError}</p>}
           {access.documents.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {access.documents.map(document => (

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { createPublicLead } from '../services/supabaseDb';
-import { PublicForm as PublicFormType } from '../types';
+import { PublicFormPublic as PublicFormType, PublicLeadInput } from '../types';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
@@ -18,6 +18,7 @@ export const PublicContactForm: React.FC<PublicContactFormProps> = ({ officeForm
   const [searchParams] = useSearchParams();
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -49,24 +50,21 @@ export const PublicContactForm: React.FC<PublicContactFormProps> = ({ officeForm
     }
 
     setSubmitting(true);
+    setSubmitError('');
     try {
       const source = searchParams.get('source') || 'Formulário Público';
       
-      const publicPayload: any = {
-        officeId: officeForm.officeId,
+      const publicPayload: PublicLeadInput = {
+        slug: officeSlug,
         name: formData.name,
         phone: formData.phone.replace(/\D/g, ''),
         email: formData.email,
         city: formData.city,
         state: formData.state,
-        area: formData.area as any,
+        area: formData.area as PublicLeadInput['area'],
         summary: formData.summary,
         consentLgpd: formData.consentLgpd,
-        source: source as any,
-        status: 'Novo contato' as const,
-        priority: 'Média' as const,
-        createdVia: 'public_form' as const,
-        publicFormSlug: officeSlug,
+        source: source as PublicLeadInput['source'],
       };
 
       const utmSource = searchParams.get('utm_source');
@@ -81,7 +79,7 @@ export const PublicContactForm: React.FC<PublicContactFormProps> = ({ officeForm
       setSuccess(true);
     } catch (err: any) {
       console.error('Falha ao enviar formulário público:', err?.message || err);
-      alert('Não foi possível enviar agora. Confira sua conexão e tente novamente.');
+      setSubmitError('Não foi possível enviar agora. Confira sua conexão e tente novamente. Seus dados foram mantidos para uma nova tentativa.');
     } finally {
       setSubmitting(false);
     }
@@ -103,8 +101,8 @@ export const PublicContactForm: React.FC<PublicContactFormProps> = ({ officeForm
         </div>
         <div>
           <h2 className="text-2xl font-bold text-slate-900 mb-2">Contato enviado com sucesso</h2>
-          <p className="text-slate-500">
-            O escritório <strong>{officeForm.officeName}</strong> recebeu sua solicitação e poderá retornar pelos canais informados.
+          <p className="text-slate-600">
+            Seu contato já foi registrado no escritório <strong>{officeForm.officeName}</strong>. A equipe poderá retornar pelos canais informados.
           </p>
         </div>
         
@@ -112,11 +110,17 @@ export const PublicContactForm: React.FC<PublicContactFormProps> = ({ officeForm
           {officeForm.whatsapp && (
             <Button onClick={handleWhatsapp} className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white gap-2 h-12">
               <MessageSquare className="w-5 h-5" />
-              Confirmar pelo WhatsApp
+              Conversar pelo WhatsApp
             </Button>
           )}
+          {officeForm.whatsapp && (
+            <p className="text-xs leading-relaxed text-slate-500">Opcional: o WhatsApp abre apenas para você iniciar uma conversa. Seu contato já foi enviado.</p>
+          )}
+          <Button variant="outline" onClick={() => window.location.assign(`/o/${officeSlug}`)} className="w-full h-12">
+            Voltar para a página do escritório
+          </Button>
           <Button variant="outline" onClick={() => setSuccess(false)} className="w-full h-12">
-            Enviar outro contato
+            Enviar outra solicitação
           </Button>
         </div>
       </div>
@@ -207,6 +211,7 @@ export const PublicContactForm: React.FC<PublicContactFormProps> = ({ officeForm
           </div>
         </div>
 
+        {submitError && <p role="alert" aria-live="assertive" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{submitError}</p>}
         <Button type="submit" disabled={submitting || !formData.consentLgpd} className="w-full bg-brand-700 hover:bg-brand-800 h-12 text-base shadow-sm">
           {submitting ? 'Enviando...' : 'Enviar contato'}
         </Button>
