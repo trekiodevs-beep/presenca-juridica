@@ -1,9 +1,28 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { handleCors, jsonWithCors } from '../_shared/cors.ts';
+import { sendTransactionalEmail } from '../_shared/email.ts';
 
 const hashToken = async (token: string) => {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
   return Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, '0')).join('');
+};
+
+const escapeHtml = (value: string) => value
+  .replaceAll('&', '&amp;')
+  .replaceAll('<', '&lt;')
+  .replaceAll('>', '&gt;')
+  .replaceAll('"', '&quot;')
+  .replaceAll("'", '&#039;');
+
+const invitationEmail = (input: { invitationUrl: string; officeName: string; role: string }) => {
+  const safeOfficeName = escapeHtml(input.officeName || 'seu escritório');
+  const safeRole = escapeHtml(input.role);
+  const safeUrl = escapeHtml(input.invitationUrl);
+  return {
+    subject: `Convite para integrar ${input.officeName || 'o escritório'}`,
+    text: `Você foi convidado para integrar ${input.officeName || 'o escritório'} no Presença Jurídica como ${input.role}. Este convite expira em 7 dias. Acesse: ${input.invitationUrl}`,
+    html: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#172033;max-width:560px"><h2>Convite para o Presença Jurídica</h2><p>Você foi convidado para integrar <strong>${safeOfficeName}</strong> como <strong>${safeRole}</strong>.</p><p>O convite é válido por 7 dias.</p><p><a href="${safeUrl}" style="display:inline-block;background:#0b469f;color:#fff;padding:12px 18px;border-radius:6px;text-decoration:none">Aceitar convite</a></p><p style="font-size:13px;color:#64748b">Se o botão não funcionar, copie este link:<br>${safeUrl}</p></div>`,
+  };
 };
 
 Deno.serve(async request => {
@@ -81,8 +100,18 @@ Deno.serve(async request => {
     const token = crypto.randomUUID() + crypto.randomUUID().replaceAll('-', '');
     const { data: invitation, error } = await admin.from('invitations').insert({ office_id: profile.office_id, email, role, token_hash: await hashToken(token), expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), created_by: authData.user.id }).select('id').single();
     if (error) return json({ error: 'Não foi possível criar o convite.' }, 500);
-    const appUrl = Deno.env.get('APP_URL') || 'http://127.0.0.1:3000';
-    return json({ invitationUrl: `${appUrl}/convites/${token}`, emailSent: false, invitationId: invitation.id });
+    const appUrl = Deno.env.get('APP_URL')?.replace(/\/$/, '') || 'http://127.0.0.1:3000';
+    const invitationUrl = `${appUrl}/convites/${token}`;
+    const { data: office } = await admin.from('offices').select('name').eq('id', profile.office_id).maybeSingle();
+    let emailSent = false;
+    try {
+      const message = invitationEmail({ invitationUrl, officeName: String(office?.name || 'seu escritório'), role });
+      await sendTransactionalEmail({ to: email, ...message });
+      emailSent = true;
+    } catch (sendError) {
+      console.error(JSON.stringify({ action: 'invitation_email_failed', officeId: profile.office_id, invitationId: invitation.id, error: String(sendError) }));
+    }
+    return json({ invitationUrl, emailSent, invitationId: invitation.id });
   }
   return json({ error: 'Ação desconhecida.' }, 400);
 });
