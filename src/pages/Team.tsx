@@ -25,6 +25,7 @@ export const Team = () => {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<UserRole>('lawyer');
   const [loading, setLoading] = useState(false);
+  const [lastInvitationUrl, setLastInvitationUrl] = useState('');
   const canManage = user?.role === 'owner' || user?.role === 'admin';
 
   const refreshInvitations = async () => {
@@ -46,13 +47,13 @@ export const Team = () => {
     setLoading(true);
     try {
       const result = await inviteMember(email.trim().toLowerCase(), role);
-      await navigator.clipboard.writeText(result.invitationUrl);
-      showToast(result.emailSent ? 'Convite enviado e link copiado.' : 'Convite criado; o link foi copiado, mas o e-mail não pôde ser enviado.', result.emailSent ? 'success' : 'info');
+      setLastInvitationUrl(result.invitationUrl);
+      showToast(result.emailSent ? 'Convite enviado por e-mail.' : 'Convite criado, mas o e-mail não pôde ser enviado. Use o link abaixo.', result.emailSent ? 'success' : 'info');
       setEmail('');
       await refreshInvitations();
     } catch (error) {
       console.error(error);
-      showToast('Não foi possível criar o convite. Publique as Cloud Functions antes de convidar usuários.', 'error');
+      showToast(error instanceof Error ? error.message : 'Não foi possível criar o convite.', 'error');
     } finally {
       setLoading(false);
     }
@@ -87,11 +88,12 @@ export const Team = () => {
           {!canManage && <p className="mt-3 text-xs text-slate-500">Somente proprietário e administrador podem convidar ou remover membros.</p>}
         </CardContent>
       </Card>
+      {lastInvitationUrl && <Card><CardHeader><CardTitle>Link do último convite</CardTitle></CardHeader><CardContent className="space-y-3"><p className="text-sm text-slate-600">O link permanece disponível mesmo se a cópia automática do navegador for bloqueada.</p><div className="flex flex-col gap-2 sm:flex-row"><input readOnly value={lastInvitationUrl} onFocus={event => event.currentTarget.select()} className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-xs text-slate-700" aria-label="Link do convite" /><Button type="button" size="sm" onClick={async () => { try { await navigator.clipboard.writeText(lastInvitationUrl); showToast('Link copiado.', 'success'); } catch { showToast('Selecione e copie o link manualmente.', 'info'); } }}>Copiar link</Button></div></CardContent></Card>}
       {canManage && <Card>
         <CardHeader><CardTitle>Convites pendentes ({invitations.length})</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           {invitations.length === 0 && <p className="text-sm text-slate-500">Nenhum convite pendente.</p>}
-          {invitations.map(invitation => <div key={invitation.id} className="flex flex-col gap-3 rounded-lg border border-slate-200 p-4 md:flex-row md:items-center md:justify-between"><div><p className="font-semibold text-slate-900">{invitation.email}</p><p className="text-xs text-slate-500">{invitation.role} · expira em {new Date(invitation.expiresAt).toLocaleDateString('pt-BR')}</p></div><div className="flex gap-3"><button className="text-xs font-semibold text-brand-700" onClick={async () => { try { const result = await resendInvitation(invitation.id); await navigator.clipboard.writeText(result.invitationUrl); showToast('Novo convite enviado e link copiado.', 'success'); await refreshInvitations(); } catch (error) { console.error(error); showToast('Não foi possível reenviar o convite.', 'error'); } }}>Reenviar</button><button className="text-xs font-semibold text-red-600" onClick={async () => { try { await revokeInvitation(invitation.id); showToast('Convite revogado.', 'success'); await refreshInvitations(); } catch (error) { console.error(error); showToast('Não foi possível revogar o convite.', 'error'); } }}>Revogar</button></div></div>)}
+          {invitations.map(invitation => <div key={invitation.id} className="flex flex-col gap-3 rounded-lg border border-slate-200 p-4 md:flex-row md:items-center md:justify-between"><div><p className="font-semibold text-slate-900">{invitation.email}</p><p className="text-xs text-slate-500">{invitation.role} · expira em {new Date(invitation.expiresAt).toLocaleDateString('pt-BR')}</p></div><div className="flex gap-3"><button className="text-xs font-semibold text-brand-700" onClick={async () => { try { const result = await resendInvitation(invitation.id); setLastInvitationUrl(result.invitationUrl); showToast(result.emailSent ? 'Novo convite enviado por e-mail.' : 'Convite renovado, mas o e-mail não pôde ser enviado. Use o link abaixo.', result.emailSent ? 'success' : 'info'); await refreshInvitations(); } catch (error) { console.error(error); showToast(error instanceof Error ? error.message : 'Não foi possível reenviar o convite.', 'error'); } }}>Reenviar</button><button className="text-xs font-semibold text-red-600" onClick={async () => { try { await revokeInvitation(invitation.id); showToast('Convite revogado.', 'success'); await refreshInvitations(); } catch (error) { console.error(error); showToast(error instanceof Error ? error.message : 'Não foi possível revogar o convite.', 'error'); } }}>Revogar</button></div></div>)}
         </CardContent>
       </Card>}
       <Card>

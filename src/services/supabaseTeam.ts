@@ -10,8 +10,17 @@ const mapInvitation = (row: Record<string, unknown>): Omit<Invitation, 'tokenHas
 
 const invoke = async (body: Record<string, unknown>) => {
   const { data, error } = await supabase.functions.invoke('team-invitations', { body });
-  if (error) throw error;
-  return data as Record<string, unknown>;
+  if (error) {
+    const context = (error as { context?: unknown }).context;
+    if (context instanceof Response) {
+      const payload = await context.clone().json().catch(() => null) as { error?: unknown } | null;
+      if (typeof payload?.error === 'string' && payload.error.trim()) throw new Error(payload.error);
+    }
+    throw new Error(error.message || 'Não foi possível concluir a operação de equipe.');
+  }
+  const response = (data || {}) as Record<string, unknown>;
+  if (typeof response.error === 'string' && response.error.trim()) throw new Error(response.error);
+  return response;
 };
 
 export const inviteMember = async (email: string, role: string) => invoke({ action: 'invite', email, role }) as Promise<{ invitationUrl: string; emailSent: boolean }>;
