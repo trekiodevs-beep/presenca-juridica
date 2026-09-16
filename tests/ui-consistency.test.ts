@@ -21,7 +21,7 @@ test('realtime listener has error recovery, visible polling and complete cleanup
   assert.match(database, /TIMED_OUT/);
   assert.match(database, /CLOSED/);
   assert.match(database, /document\.visibilityState === 'visible'/);
-  assert.match(database, /setInterval\([\s\S]*60000/);
+  assert.match(database, /fallbackIntervalMs = 60000/);
   assert.match(database, /removeEventListener\('visibilitychange'/);
   assert.match(database, /removeChannel\(channel\)/);
 });
@@ -90,6 +90,12 @@ test('Deleted calendar events leave the CRM list immediately and remain hidden a
   const context = source('src/context/DataContext.tsx');
   assert.match(context, /fetchedCalendarEvents\.filter\(event => !event\.deletedAt\)/);
   assert.match(context, /await dbDeleteCalendarEvent\(id\);\s*setCalendarEvents\(current => current\.filter\(event => event\.id !== id\)\)/);
+});
+
+test('Calendar screen has a bounded refresh fallback for delayed Realtime delivery', () => {
+  const database = source('src/services/supabaseDb.ts');
+  assert.match(database, /listen\('calendar_events',[\s\S]*10000\)/);
+  assert.match(database, /Realtime delivery is delayed or dropped/);
 });
 
 test('mobile navigation breakpoint and touch-safe Kanban alternative stay present', () => {

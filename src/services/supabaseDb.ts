@@ -95,7 +95,7 @@ const mapClientPortalAccess = (row: Record<string, unknown>): ClientPortalAccess
   isActive: Boolean(row.is_active), createdAt: String(row.created_at), updatedAt: String(row.updated_at),
 });
 
-const listen = <T>(table: string, officeId: string, map: (row: Record<string, unknown>) => T, callback: (items: T[]) => void, orderBy: string) => {
+const listen = <T>(table: string, officeId: string, map: (row: Record<string, unknown>) => T, callback: (items: T[]) => void, orderBy: string, fallbackIntervalMs = 60000) => {
   let active = true;
   let recoveryTimer: number | undefined;
   const refresh = async () => {
@@ -113,7 +113,7 @@ const listen = <T>(table: string, officeId: string, map: (row: Record<string, un
     .subscribe((status) => {
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') scheduleRecovery();
     });
-  const recoveryInterval = window.setInterval(() => { if (document.visibilityState === 'visible') void refresh(); }, 60000);
+  const recoveryInterval = window.setInterval(() => { if (document.visibilityState === 'visible') void refresh(); }, fallbackIntervalMs);
   const handleVisibility = () => { if (document.visibilityState === 'visible') void refresh(); };
   document.addEventListener('visibilitychange', handleVisibility);
   return () => {
@@ -128,7 +128,9 @@ const listen = <T>(table: string, officeId: string, map: (row: Record<string, un
 export const listenLeadsByOffice = (officeId: string, callback: (items: Lead[]) => void) => listen('leads', officeId, mapLead, callback, 'updated_at');
 export const listenEventsByOffice = (officeId: string, callback: (items: LeadEvent[]) => void) => listen('lead_events', officeId, mapLeadEvent, callback, 'created_at');
 export const listenTasksByOffice = (officeId: string, callback: (items: Task[]) => void) => listen('tasks', officeId, mapTask, callback, 'due_at');
-export const listenCalendarEventsByOffice = (officeId: string, callback: (items: CalendarEvent[]) => void) => listen('calendar_events', officeId, mapCalendarEvent, callback, 'start_at');
+// Calendar changes can also originate outside the CRM (Google webhook). Keep a
+// short, bounded fallback in case a Realtime delivery is delayed or dropped.
+export const listenCalendarEventsByOffice = (officeId: string, callback: (items: CalendarEvent[]) => void) => listen('calendar_events', officeId, mapCalendarEvent, callback, 'start_at', 10000);
 
 export const listenDocumentsByOffice = (officeId: string, callback: (items: LeadDocument[]) => void) => listen('lead_documents', officeId, mapDocument, callback, 'created_at');
 export const listenClientPortalAccessByOffice = (officeId: string, callback: (items: ClientPortalAccess[]) => void) => listen('client_portal_access', officeId, mapClientPortalAccess, callback, 'updated_at');
