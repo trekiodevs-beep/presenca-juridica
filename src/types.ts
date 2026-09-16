@@ -87,7 +87,7 @@ export type SubscriptionStatus =
   | 'CANCELED'
   | 'EXPIRED';
 
-export type PlanCode = 'trial' | 'essential' | 'professional' | 'custom';
+export type PlanCode = 'trial' | 'core' | 'essential' | 'professional' | 'custom';
 
 export type UserRole = 'owner' | 'admin' | 'lawyer' | 'assistant' | 'finance' | 'read';
 
@@ -220,6 +220,7 @@ export interface Office {
   billingCustomerId?: string | null;
   billingSubscriptionId?: string | null;
   billingProvider?: 'asaas' | null;
+  priceCode?: string | null;
   deletionScheduledAt?: string | null;
   createdAt: string;
   updatedAt: string;

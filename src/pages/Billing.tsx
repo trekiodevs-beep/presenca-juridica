@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { COMMERCIAL_PLANS, getPlan } from '../lib/plans';
+import { CORE_PLAN, getPlan } from '../lib/plans';
 import { getAccessMode, subscriptionLabel } from '../lib/access';
 import { cancelSubscription, changePlan, createCheckout, getBillingSummary, updateBillingMethod, type BillingPayment } from '../services/supabaseBilling';
 import { getUsageCounter } from '../services/supabaseDb';
@@ -26,6 +26,12 @@ export const Billing = () => {
   const currentPlan = getPlan(office?.planCode);
   const accessMode = getAccessMode(office);
   const canManage = user?.role === 'owner' || user?.role === 'admin';
+  const priceOptions = [
+    { code: 'core_monthly', name: 'Mensal flexível', amountCents: 11990, monthlyCents: 11990, detail: 'Cobrança mensal, sem período mínimo.' },
+    { code: 'core_quarterly', name: 'Trimestral', amountCents: 29970, monthlyCents: 9990, detail: 'Cobrança de R$ 299,70 a cada 3 meses.', featured: true },
+    { code: 'core_semiannual', name: 'Semestral', amountCents: 50940, monthlyCents: 8490, detail: 'Cobrança de R$ 509,40 a cada 6 meses.' },
+    { code: 'core_annual', name: 'Anual', amountCents: 95880, monthlyCents: 7990, detail: 'Cobrança de R$ 958,80 a cada 12 meses.' },
+  ] as const;
 
   useEffect(() => {
     if (!office?.billingSubscriptionId || !canManage) return;
@@ -48,14 +54,18 @@ export const Billing = () => {
     finally { setLoadingBilling(false); }
   };
 
-  const handlePlan = async (planCode: 'essential' | 'professional') => {
+  const handlePlan = async (priceCode: string) => {
     if (!canManage) return;
-    setLoadingPlan(planCode);
+    setLoadingPlan(priceCode);
     try {
       if (!office?.billingSubscriptionId && ![11, 14].includes(cpfCnpj.replace(/\D/g, '').length)) { showToast('Informe um CPF ou CNPJ válido para o pagador.', 'error'); return; }
-      const response = office?.billingSubscriptionId && office.subscriptionStatus !== 'CANCELED' ? await changePlan(planCode) : await createCheckout(planCode, cpfCnpj);
-      if (response.checkoutUrl) window.open(response.checkoutUrl, '_blank', 'noopener,noreferrer');
-      showToast('Checkout seguro aberto em uma nova aba.', 'success');
+      const response = office?.billingSubscriptionId && office.subscriptionStatus !== 'CANCELED' ? await changePlan(priceCode) : await createCheckout(priceCode, cpfCnpj);
+      if ('checkoutUrl' in response && response.checkoutUrl) {
+        window.open(response.checkoutUrl, '_blank', 'noopener,noreferrer');
+        showToast('Checkout seguro aberto em uma nova aba.', 'success');
+      } else {
+        showToast('Plano atualizado. A próxima cobrança seguirá o novo período.', 'success');
+      }
     } catch (error) {
       console.error(error);
       showToast('Não foi possível iniciar a cobrança. Verifique se as Cloud Functions estão publicadas.', 'error');
@@ -99,23 +109,23 @@ export const Billing = () => {
       <Card><CardHeader><CardTitle>Uso do plano</CardTitle></CardHeader><CardContent className="grid gap-4 md:grid-cols-3">{([['Usuários', usage?.users || 0, currentPlan.limits.maxUsers], ['Contatos', usage?.contacts || 0, currentPlan.limits.maxContacts], ['Armazenamento', usage?.storageBytes || 0, currentPlan.limits.maxStorageBytes]] as const).map(([label, value, limit]) => { const percent = Math.min(100, Math.round((value / limit) * 100)); const display = label === 'Armazenamento' ? `${(value / 1024 / 1024).toFixed(1)} MB de ${(limit / 1024 / 1024 / 1024).toFixed(1)} GB` : `${value.toLocaleString('pt-BR')} de ${limit.toLocaleString('pt-BR')}`; return <div key={label} className={percent >= 80 ? 'rounded-lg border border-amber-200 bg-amber-50 p-4' : 'rounded-lg bg-slate-50 p-4'}><div className="flex justify-between text-sm"><span className="font-semibold text-slate-800">{label}</span><span>{percent}%</span></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200"><div className={percent >= 100 ? 'h-full bg-red-600' : percent >= 80 ? 'h-full bg-amber-500' : 'h-full bg-brand-600'} style={{ width: `${percent}%` }} /></div><p className="mt-2 text-xs text-slate-500">{display}</p></div>; })}</CardContent></Card>
 
       <div className="grid gap-4 md:grid-cols-3">
-        {Object.values(COMMERCIAL_PLANS).map(plan => {
-          const isCurrent = office?.planCode === plan.code && office.subscriptionStatus === 'ACTIVE';
+        {priceOptions.map(price => {
+          const isCurrent = office?.priceCode === price.code && office.subscriptionStatus === 'ACTIVE';
           return (
-            <Card key={plan.code} className={isCurrent ? 'border-brand-500 shadow-md' : 'border-slate-200'}>
+            <Card key={price.code} className={isCurrent ? 'border-brand-500 shadow-md' : 'border-slate-200'}>
               <CardHeader>
                 <div className="flex items-start justify-between gap-3">
-                  <div><CardTitle>{plan.name}</CardTitle><p className="mt-1 text-sm text-slate-500">{plan.audience}</p></div>
-                  {isCurrent && <span className="rounded-full bg-brand-50 px-2 py-1 text-[10px] font-bold uppercase text-brand-700">Atual</span>}
+                  <div><CardTitle>{price.name}</CardTitle><p className="mt-1 text-sm text-slate-500">{price.detail}</p></div>
+                  {(isCurrent || ('featured' in price && price.featured)) && <span className="rounded-full bg-brand-50 px-2 py-1 text-[10px] font-bold uppercase text-brand-700">{isCurrent ? 'Atual' : 'Mais escolhido'}</span>}
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="text-3xl font-extrabold text-slate-900">{plan.priceCents ? `R$ ${(plan.priceCents / 100).toLocaleString('pt-BR')}` : 'Sob consulta'}<span className="text-sm font-medium text-slate-500">{plan.priceCents ? '/mês' : ''}</span></p>
+                <p className="text-3xl font-extrabold text-slate-900">R$ {(price.monthlyCents / 100).toLocaleString('pt-BR')}<span className="text-sm font-medium text-slate-500">/mês</span></p>
                 <ul className="mt-5 space-y-2 text-sm text-slate-600">
-                  {plan.features.map(feature => <li key={feature} className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />{feature}</li>)}
+                  {CORE_PLAN.features.map(feature => <li key={feature} className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />{feature}</li>)}
                 </ul>
-                <Button disabled={!canManage || isCurrent || loadingPlan !== null} onClick={() => plan.code === 'custom' ? window.open('mailto:comercial@trekio.com.br?subject=Plano%20personalizado%20Presença%20Jurídica', '_blank') : handlePlan(plan.code as 'essential' | 'professional')} className="mt-6 w-full">
-                  {loadingPlan === plan.code ? 'Abrindo checkout...' : isCurrent ? 'Plano atual' : plan.code === 'custom' ? 'Falar com comercial' : 'Escolher plano'}
+                <Button disabled={!canManage || isCurrent || loadingPlan !== null} onClick={() => handlePlan(price.code)} className="mt-6 w-full">
+                  {loadingPlan === price.code ? 'Abrindo checkout...' : isCurrent ? 'Plano atual' : 'Escolher período'}
                 </Button>
               </CardContent>
             </Card>

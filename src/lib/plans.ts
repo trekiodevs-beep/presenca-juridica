@@ -10,7 +10,17 @@ export const TRIAL_PLAN: Plan = {
   features: ['Uso completo por 15 dias', 'Onboarding guiado', 'Link público do escritório'],
 };
 
-export const COMMERCIAL_PLANS: Record<Exclude<PlanCode, 'trial'>, Plan> = {
+export const CORE_PLAN: Plan = {
+  code: 'core',
+  name: 'Presença Jurídica',
+  audience: 'CRM completo para o escritório',
+  priceCents: 11990,
+  interval: 'month',
+  limits: { maxUsers: 3, maxContacts: 500, maxStorageBytes: 5 * 1024 * 1024 * 1024 },
+  features: ['Até 3 usuários', 'Até 500 contatos', '5 GB de documentos', 'Agenda e portal do cliente'],
+};
+
+export const COMMERCIAL_PLANS: Record<Exclude<PlanCode, 'trial' | 'core'>, Plan> = {
   essential: {
     code: 'essential',
     name: 'Essencial',
@@ -40,7 +50,7 @@ export const COMMERCIAL_PLANS: Record<Exclude<PlanCode, 'trial'>, Plan> = {
   },
 };
 
-export const PLANS: Record<PlanCode, Plan> = { trial: TRIAL_PLAN, ...COMMERCIAL_PLANS };
+export const PLANS: Record<PlanCode, Plan> = { trial: TRIAL_PLAN, core: CORE_PLAN, ...COMMERCIAL_PLANS };
 
 export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   owner: ['office.manage', 'billing.manage', 'members.manage', 'contacts.read', 'contacts.write', 'tasks.write', 'calendar.write', 'finance.read', 'finance.write', 'documents.write', 'portal.write', 'export.read'],
