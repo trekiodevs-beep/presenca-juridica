@@ -131,7 +131,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     });
 
     const unsubCalendarEvents = listenCalendarEventsByOffice(office.id, (fetchedCalendarEvents) => {
-      setCalendarEvents(fetchedCalendarEvents);
+      setCalendarEvents(fetchedCalendarEvents.filter(event => !event.deletedAt));
     });
 
     const unsubFinancialRecords = listenFinancialRecordsByOffice(office.id, (fetchedFinancialRecords) => {
@@ -433,6 +433,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     await dbDeleteCalendarEvent(id);
+    setCalendarEvents(current => current.filter(event => event.id !== id));
   };
 
   const addFinancialRecord = async (recordData: Omit<FinancialRecord, 'id' | 'createdAt' | 'updatedAt' | 'officeId'>) => {

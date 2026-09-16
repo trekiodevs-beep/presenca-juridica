@@ -86,6 +86,12 @@ test('Imported Google events can be linked to CRM contacts without exposing that
   assert.doesNotMatch(migration, /update of[^\n]*lead_id/i);
 });
 
+test('Deleted calendar events leave the CRM list immediately and remain hidden after refresh', () => {
+  const context = source('src/context/DataContext.tsx');
+  assert.match(context, /fetchedCalendarEvents\.filter\(event => !event\.deletedAt\)/);
+  assert.match(context, /await dbDeleteCalendarEvent\(id\);\s*setCalendarEvents\(current => current\.filter\(event => event\.id !== id\)\)/);
+});
+
 test('mobile navigation breakpoint and touch-safe Kanban alternative stay present', () => {
   assert.match(source('src/components/layout/Sidebar.tsx'), /hidden lg:flex/);
   assert.match(source('src/components/layout/Layout.tsx'), /lg:hidden/);
