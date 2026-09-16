@@ -122,7 +122,7 @@ export const Login = () => {
 
           <footer className="login-footer relative z-20 flex items-center justify-between gap-6 border-t border-white/10 pt-6 text-xs text-slate-500">
             <span>Tecnologia TrekIO · Método ATOM</span>
-            <span className="tracking-[0.14em]">CLAREZA · RITMO · CONTROLE</span>
+            <Link className="font-semibold text-slate-400 transition hover:text-white" to="/legal/privacidade">Política de Privacidade</Link>
           </footer>
         </section>
 
@@ -196,9 +196,12 @@ export const Login = () => {
                   <ShieldCheck className="h-4 w-4 shrink-0 text-brand-700" />
                   Ambiente restrito a profissionais e equipes autorizadas.
                 </p>
+                <p className="mt-3 text-xs leading-5 text-slate-500">
+                  Com sua autorização, o Presença Jurídica usa os dados do Google Agenda somente para exibir e sincronizar os compromissos do seu escritório.
+                </p>
                 <nav aria-label="Documentos legais" className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-slate-500">
                   <Link className="transition hover:text-brand-700" to="/legal/termos">Termos</Link>
-                  <Link className="transition hover:text-brand-700" to="/legal/privacidade">Privacidade</Link>
+                  <Link className="transition hover:text-brand-700" to="/legal/privacidade">Política de Privacidade</Link>
                   <Link className="transition hover:text-brand-700" to="/legal/cookies">Cookies</Link>
                 </nav>
               </div>

@@ -116,6 +116,17 @@ test('customer-facing vocabulary and progressive disclosure stay consistent', ()
   assert.match(source('src/pages/Tasks.tsx'), /tasks\.length === 0 \|\| taskFormOpen/);
 });
 
+test('public OAuth entry page exposes the privacy policy and Google data disclosure', () => {
+  const login = source('src/pages/Login.tsx');
+  const legal = source('src/pages/Legal.tsx');
+
+  assert.match(login, /to="\/legal\/privacidade">Política de Privacidade/);
+  assert.match(login, /usa os dados do Google Agenda somente para exibir e sincronizar os compromissos/);
+  assert.match(legal, /Dados do Google Agenda/);
+  assert.match(legal, /Uso limitado de dados Google/);
+  assert.match(legal, /api-services-user-data-policy/);
+});
+
 test('contact cards omit empty operational counters', () => {
   const leads = source('src/pages/Leads.tsx');
   assert.match(leads, /signals\.documentCount > 0/);
