@@ -23,14 +23,24 @@ Deno.serve(async (request) => {
   const encryptionKey = Deno.env.get('CALENDAR_TOKEN_ENCRYPTION_KEY');
   if (!supabaseUrl || !serviceRoleKey || !clientId || !clientSecret || !encryptionKey) return Response.redirect(`${appUrl}/settings?calendar=not_configured`, 303);
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: oauthState } = await admin.from('calendar_oauth_states').select('*').eq('state', state).is('consumed_at', null).gt('expires_at', new Date().toISOString()).maybeSingle();
+  const { data: oauthState, error: stateError } = await admin
+    .from('calendar_oauth_states')
+    .select('*')
+    .eq('state', state)
+    .is('consumed_at', null)
+    .gt('expires_at', new Date().toISOString())
+    .maybeSingle();
+  if (stateError) {
+    console.error('calendar-oauth-callback state query failed', { code: stateError.code, message: stateError.message });
+    return Response.redirect(`${appUrl}/settings?calendar=server_error`, 303);
+  }
   if (!oauthState) return Response.redirect(`${appUrl}/settings?calendar=invalid_state`, 303);
   const tokenResponse = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ code, client_id: clientId, client_secret: clientSecret, redirect_uri: oauthState.redirect_uri, grant_type: 'authorization_code' }) });
   const tokens = await tokenResponse.json();
   if (!tokenResponse.ok || !tokens.refresh_token) return Response.redirect(`${appUrl}/settings?calendar=token_error`, 303);
   let googleAccountEmail = '';
   if (tokens.access_token) {
-    const profileResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: `Bearer ${tokens.access_token}` } });
+    const profileResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: { Authorization: `Bearer ${tokens.access_token}` } });
     if (profileResponse.ok) {
       const profile = await profileResponse.json();
       googleAccountEmail = typeof profile.email === 'string' ? profile.email : '';

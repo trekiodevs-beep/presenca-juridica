@@ -1,4 +1,5 @@
 import type { CalendarEvent, ClientPortalAccess, DocumentCategory, FinancialRecord, Lead, LeadDocument, LeadEvent, Membership, PublicForm, PublicFormPublic, PublicLeadInput, Task, UsageCounter } from '../types';
+import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
 const now = () => new Date().toISOString();
@@ -318,9 +319,49 @@ export const deleteCalendarEvent = async (eventId: string) => {
   return data;
 };
 
+export class CalendarSyncRequestError extends Error {
+  readonly status: number | null;
+  readonly originalError: unknown;
+
+  constructor(message: string, status: number | null, originalError: unknown) {
+    super(message);
+    this.name = 'CalendarSyncRequestError';
+    this.status = status;
+    this.originalError = originalError;
+  }
+}
+
 export const syncCalendarNow = async () => {
   const { data, error } = await supabase.functions.invoke('calendar-sync-now', { body: {} });
-  if (error) throw error;
+  if (error instanceof FunctionsHttpError) {
+    const status = error.context.status;
+    let serverMessage = '';
+    try {
+      const payload = await error.context.clone().json() as { error?: unknown };
+      serverMessage = typeof payload.error === 'string' ? payload.error : '';
+    } catch {
+      // The HTTP status remains sufficient to produce a safe user-facing message.
+    }
+    const message = status === 401
+      ? 'Sua sessão expirou. Entre novamente para sincronizar a agenda.'
+      : status === 403
+        ? 'Sua conta não possui permissão para sincronizar esta agenda.'
+        : status === 412
+          ? 'Conecte e selecione uma agenda Google antes de sincronizar.'
+          : status === 429
+            ? 'Há uma sincronização em andamento. Aguarde um instante e tente novamente.'
+            : 'Não foi possível sincronizar a agenda agora. Tente novamente.';
+    console.error('calendar-sync-now returned an HTTP error', { status, serverMessage, error });
+    throw new CalendarSyncRequestError(message, status, error);
+  }
+  if (error instanceof FunctionsRelayError || error instanceof FunctionsFetchError) {
+    console.error('calendar-sync-now could not reach the Edge Function', error);
+    throw new CalendarSyncRequestError('Não foi possível acessar o serviço de sincronização. Verifique sua conexão e tente novamente.', null, error);
+  }
+  if (error) {
+    console.error('calendar-sync-now failed unexpectedly', error);
+    throw new CalendarSyncRequestError('Não foi possível sincronizar a agenda agora. Tente novamente.', null, error);
+  }
   return data as { syncRunId: string; status: string; queued: number };
 };
 

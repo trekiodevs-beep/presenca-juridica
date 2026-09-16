@@ -43,6 +43,17 @@ test('application source does not use blocking browser alert, confirm or prompt 
   for (const file of files) assert.doesNotMatch(source(file), /(?:window\.)?(?:alert|confirm|prompt)\s*\(/, `${file} must use an accessible in-app response`);
 });
 
+test('Calendar sync never renders the raw Edge Function SDK error to the customer', () => {
+  const agenda = source('src/pages/Agenda.tsx');
+  const databaseService = source('src/services/supabaseDb.ts');
+
+  assert.match(agenda, /error instanceof CalendarSyncRequestError/);
+  assert.doesNotMatch(agenda, /setSyncMessage\(error instanceof Error \? error\.message/);
+  assert.match(databaseService, /error instanceof FunctionsHttpError/);
+  assert.match(databaseService, /error\.context\.clone\(\)\.json\(\)/);
+  assert.match(databaseService, /Não foi possível sincronizar a agenda agora\. Tente novamente\./);
+});
+
 test('mobile navigation breakpoint and touch-safe Kanban alternative stay present', () => {
   assert.match(source('src/components/layout/Sidebar.tsx'), /hidden lg:flex/);
   assert.match(source('src/components/layout/Layout.tsx'), /lg:hidden/);

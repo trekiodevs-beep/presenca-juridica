@@ -46,6 +46,29 @@ test('Calendar OAuth resolves tenant from active membership and does not mask qu
   assert.doesNotMatch(code, /from\('profiles'\)\.select\('office_id'\)/);
 });
 
+test('Calendar OAuth callback does not mask database failures as invalid state', () => {
+  const callback = source('calendar-oauth-callback/index.ts');
+  const start = source('calendar-oauth-start/index.ts');
+
+  assert.match(callback, /error: stateError/);
+  assert.match(callback, /if \(stateError\)/);
+  assert.match(callback, /calendar=server_error/);
+  assert.match(callback, /openidconnect\.googleapis\.com\/v1\/userinfo/);
+  assert.match(start, /scope: 'openid email /);
+});
+
+test('Manual Calendar sync resolves tenant and connection deterministically', () => {
+  const code = source('calendar-sync-now/index.ts');
+
+  assert.match(code, /error: membershipError/);
+  assert.match(code, /if \(membershipError\)/);
+  assert.match(code, /order\('created_at', \{ ascending: true \}\)/);
+  assert.match(code, /limit\(1\)/);
+  assert.match(code, /error: connectionError/);
+  assert.match(code, /eq\('user_id', auth\.user\.id\)[\s\S]*eq\('provider', 'google'\)/);
+  assert.match(code, /calendar-sync-now downstream returned non-success/);
+});
+
 test('Calendar connection status distinguishes missing authentication from server configuration', () => {
   const code = source('calendar-connection-status/index.ts');
   const authenticationCheck = code.indexOf("if (!authorization) return jsonWithCors(request, { error: 'Autenticação obrigatória.' }, 401)");

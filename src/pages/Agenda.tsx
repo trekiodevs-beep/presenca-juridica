@@ -15,7 +15,7 @@ import { CalendarEvent, CalendarEventStatus, CalendarEventType } from '../types'
 import { useToast } from '../context/ToastContext';
 import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabase';
-import { resolveCalendarConflict, syncCalendarNow } from '../services/supabaseDb';
+import { CalendarSyncRequestError, resolveCalendarConflict, syncCalendarNow } from '../services/supabaseDb';
 
 const eventTypes: CalendarEventType[] = ['Consulta', 'Retorno', 'Prazo', 'Audiência', 'Reunião', 'Outro'];
 const eventStatuses: CalendarEventStatus[] = ['Agendado', 'Concluído', 'Cancelado'];
@@ -61,7 +61,7 @@ export const Agenda = () => {
     if (syncing) return;
     setSyncing(true); setSyncMessage('');
     try { const result = await syncCalendarNow(); setSyncMessage(`${result.queued} pendência(s) enfileirada(s). O worker concluirá o lote.`); }
-    catch (error) { console.error(error); setSyncMessage(error instanceof Error ? error.message : 'Não foi possível sincronizar.'); }
+    catch (error) { console.error(error); setSyncMessage(error instanceof CalendarSyncRequestError ? error.message : 'Não foi possível sincronizar a agenda agora. Tente novamente.'); }
     finally { setSyncing(false); }
   };
 

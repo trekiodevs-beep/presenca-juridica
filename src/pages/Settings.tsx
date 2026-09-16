@@ -56,6 +56,7 @@ export const Settings = () => {
       error: ['Não foi possível conectar a Google Agenda.', 'error'],
       not_configured: ['A integração Google Agenda ainda não está configurada no servidor.', 'error'],
       invalid_state: ['A autorização expirou. Tente conectar novamente.', 'error'],
+      server_error: ['Não foi possível validar a autorização no servidor. Tente novamente em instantes.', 'error'],
       token_error: ['O Google não autorizou a conexão.', 'error'],
     };
     const message = messages[result];

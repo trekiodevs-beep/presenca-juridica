@@ -46,6 +46,6 @@ Deno.serve(async (request) => {
     console.error('calendar-oauth-start state insert failed', { code: error.code, message: error.message });
     return jsonWithCors(request, { error: 'Não foi possível iniciar a autorização.' }, 500);
   }
-  const params = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, response_type: 'code', access_type: 'offline', prompt: 'consent', scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.calendarlist.readonly', state });
+  const params = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, response_type: 'code', access_type: 'offline', prompt: 'consent', scope: 'openid email https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.calendarlist.readonly', state });
   return jsonWithCors(request, { authorizationUrl: `https://accounts.google.com/o/oauth2/v2/auth?${params}` });
 });
