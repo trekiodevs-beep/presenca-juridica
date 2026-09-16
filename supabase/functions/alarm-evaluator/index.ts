@@ -6,7 +6,7 @@ Deno.serve(async request => {
   const configuredSecret = Deno.env.get('ALARM_EVALUATOR_SECRET');
   if (request.method !== 'POST' || !configuredSecret || request.headers.get('x-alarm-evaluator-secret') !== configuredSecret) return json({ error: 'Não autorizado.' }, 401);
   const url = Deno.env.get('SUPABASE_URL');
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SECRET_KEY') || Deno.env.get('BACKEND_SERVICE_ROLE_KEY');
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SECRET_KEY');
   if (!url || !serviceRoleKey) return json({ error: 'Configuração incompleta.' }, 500);
   const admin = createClient(url, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const officeId = new URL(request.url).searchParams.get('office_id');

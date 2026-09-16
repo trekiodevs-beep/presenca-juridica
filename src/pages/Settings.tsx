@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
-import { updateOffice as dbUpdateOffice, updatePublicForm } from '../services/supabaseDb';
+import { GoogleCalendarSettingsError, listGoogleCalendars, selectGoogleCalendar as selectGoogleCalendarConnection, updateOffice as dbUpdateOffice, updatePublicForm, type GoogleCalendarOption } from '../services/supabaseDb';
 import { createSupabaseOffice } from '../services/supabaseAuth';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, Building2, MessageSquare, ShieldAlert, Link as LinkIcon, Copy, ExternalLink, Globe, Clock, Calendar, ArrowRight } from 'lucide-react';
@@ -25,7 +25,7 @@ export const Settings = () => {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [calendarConnection, setCalendarConnection] = useState<{ google_account_email: string | null; calendar_id: string | null; calendar_name: string | null; status: string; last_sync_at: string | null } | null>(null);
-  const [googleCalendars, setGoogleCalendars] = useState<Array<{ id: string; summary: string; primary: boolean }>>([]);
+  const [googleCalendars, setGoogleCalendars] = useState<GoogleCalendarOption[]>([]);
 
   const handleCopyText = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
@@ -88,20 +88,27 @@ export const Settings = () => {
   const loadGoogleCalendars = async () => {
     setCalendarLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('calendar-list', { body: {} });
-      if (error) throw error;
-      setGoogleCalendars(data?.calendars || []);
-    } catch (error) { console.error(error); showToast('Não foi possível listar as agendas Google.', 'error'); }
+      const calendars = await listGoogleCalendars();
+      setGoogleCalendars(calendars);
+      showToast(calendars.length > 0 ? 'Agendas Google carregadas. Escolha a agenda de destino.' : 'Nenhuma agenda com permissão de edição foi encontrada nesta conta.', calendars.length > 0 ? 'success' : 'info');
+    } catch (error) { console.error(error); showToast(error instanceof GoogleCalendarSettingsError ? error.message : 'Não foi possível carregar suas agendas agora. Tente novamente.', 'error'); }
     finally { setCalendarLoading(false); }
   };
 
   const selectGoogleCalendar = async (calendarId: string) => {
     const selected = googleCalendars.find(calendar => calendar.id === calendarId);
     if (!selected) return;
-    const { data, error } = await supabase.functions.invoke('calendar-select', { body: { calendarId, calendarName: selected.summary } });
-    if (error) { console.error(error); showToast('Não foi possível selecionar a agenda.', 'error'); return; }
-    setCalendarConnection(current => current ? { ...current, ...data.connection } : current);
-    showToast('Agenda Google selecionada.', 'success');
+    setCalendarLoading(true);
+    try {
+      const data = await selectGoogleCalendarConnection(selected);
+      setCalendarConnection(current => current ? { ...current, ...data.connection } : current);
+      showToast(data.syncQueued ? 'Agenda Google selecionada e sincronização preparada.' : 'Agenda selecionada. A sincronização automática será retomada em instantes.', data.syncQueued ? 'success' : 'info');
+    } catch (error) {
+      console.error(error);
+      showToast(error instanceof GoogleCalendarSettingsError ? error.message : 'Não foi possível selecionar esta agenda. Tente novamente.', 'error');
+    } finally {
+      setCalendarLoading(false);
+    }
   };
 
   useEffect(() => {

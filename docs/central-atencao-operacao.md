@@ -26,7 +26,7 @@ A Edge Function `alarm-evaluator` executa as regras persistentes usando `service
 Variáveis obrigatórias no ambiente da função:
 
 - `SUPABASE_URL`;
-- `BACKEND_SERVICE_ROLE_KEY` (ou equivalente suportado pela função);
+- `SUPABASE_SERVICE_ROLE_KEY` (somente backend; nunca exponha em variáveis `VITE_*`);
 - `ALARM_EVALUATOR_SECRET`.
 
 Invocação de um escritório:

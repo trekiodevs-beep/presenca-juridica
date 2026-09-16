@@ -8,7 +8,7 @@ Deno.serve(async request => {
   if (request.method !== 'POST') return json(request, { error: 'Method not allowed' }, 405);
   const authorization = request.headers.get('Authorization');
   const url = Deno.env.get('SUPABASE_URL'); const anon = Deno.env.get('SUPABASE_ANON_KEY');
-  const service = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SECRET_KEY') || Deno.env.get('BACKEND_SERVICE_ROLE_KEY');
+  const service = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SECRET_KEY');
   if (!authorization) return json(request, { error: 'Autenticação obrigatória.' }, 401);
   if (!url || !anon || !service) {
     console.error('calendar-sync-now runtime configuration is incomplete');

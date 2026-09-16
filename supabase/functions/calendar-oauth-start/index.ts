@@ -8,14 +8,14 @@ Deno.serve(async (request) => {
   const authorization = request.headers.get('Authorization');
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SECRET_KEY') || Deno.env.get('BACKEND_SERVICE_ROLE_KEY');
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SECRET_KEY');
   const clientId = Deno.env.get('GOOGLE_CALENDAR_CLIENT_ID') || Deno.env.get('SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID');
   const redirectUri = Deno.env.get('GOOGLE_CALENDAR_REDIRECT_URI') || `${supabaseUrl || 'http://127.0.0.1:54321'}/functions/v1/calendar-oauth-callback`;
   if (!authorization) return jsonWithCors(request, { error: 'Autenticação obrigatória.' }, 401);
   const missing = [
     !supabaseUrl && 'SUPABASE_URL',
     !anonKey && 'SUPABASE_ANON_KEY',
-    !serviceRoleKey && 'BACKEND_SERVICE_ROLE_KEY',
+    !serviceRoleKey && 'SUPABASE_SERVICE_ROLE_KEY',
     !clientId && 'GOOGLE_CALENDAR_CLIENT_ID (ou SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)',
   ].filter(Boolean);
   if (missing.length > 0) {

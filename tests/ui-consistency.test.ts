@@ -54,6 +54,17 @@ test('Calendar sync never renders the raw Edge Function SDK error to the custome
   assert.match(databaseService, /Não foi possível sincronizar a agenda agora\. Tente novamente\./);
 });
 
+test('Google Calendar settings translates function failures into actionable customer messages', () => {
+  const settings = source('src/pages/Settings.tsx');
+  const databaseService = source('src/services/supabaseDb.ts');
+
+  assert.match(settings, /error instanceof GoogleCalendarSettingsError/);
+  assert.doesNotMatch(settings, /if \(error\) throw error;[\s\S]*Não foi possível listar as agendas Google/);
+  assert.match(databaseService, /code === 'google_reauthorization_required'/);
+  assert.match(databaseService, /Use “Reconectar Google Agenda”/);
+  assert.match(settings, /Nenhuma agenda com permissão de edição foi encontrada/);
+});
+
 test('mobile navigation breakpoint and touch-safe Kanban alternative stay present', () => {
   assert.match(source('src/components/layout/Sidebar.tsx'), /hidden lg:flex/);
   assert.match(source('src/components/layout/Layout.tsx'), /lg:hidden/);

@@ -331,6 +331,70 @@ export class CalendarSyncRequestError extends Error {
   }
 }
 
+export type GoogleCalendarOption = {
+  id: string;
+  summary: string;
+  description: string | null;
+  primary: boolean;
+  accessRole: string;
+};
+
+export class GoogleCalendarSettingsError extends Error {
+  readonly code: string | null;
+  readonly status: number | null;
+
+  constructor(message: string, code: string | null, status: number | null) {
+    super(message);
+    this.name = 'GoogleCalendarSettingsError';
+    this.code = code;
+    this.status = status;
+  }
+}
+
+const calendarSettingsFailure = async (error: unknown, fallback: string): Promise<GoogleCalendarSettingsError> => {
+  if (error instanceof FunctionsHttpError) {
+    const status = error.context.status;
+    let code: string | null = null;
+    let serverMessage = '';
+    try {
+      const payload = await error.context.clone().json() as { code?: unknown; error?: unknown };
+      code = typeof payload.code === 'string' ? payload.code : null;
+      serverMessage = typeof payload.error === 'string' ? payload.error : '';
+    } catch {
+      // Status-based fallback below remains safe for the customer.
+    }
+    console.error('Google Calendar settings function returned an HTTP error', { status, code, serverMessage, error });
+    const message = code === 'google_reauthorization_required'
+      ? 'Sua autorização Google precisa ser renovada. Use “Reconectar Google Agenda”.'
+      : status === 401
+        ? 'Sua sessão expirou. Entre novamente para continuar.'
+        : status === 403
+          ? 'Sua conta não possui permissão para alterar esta integração.'
+          : status === 502
+            ? 'O Google Agenda está temporariamente indisponível. Tente novamente em instantes.'
+            : fallback;
+    return new GoogleCalendarSettingsError(message, code, status);
+  }
+  if (error instanceof FunctionsRelayError || error instanceof FunctionsFetchError) {
+    console.error('Google Calendar settings function is unreachable', error);
+    return new GoogleCalendarSettingsError('Não foi possível acessar o serviço do Google Agenda. Verifique sua conexão e tente novamente.', null, null);
+  }
+  console.error('Google Calendar settings operation failed unexpectedly', error);
+  return new GoogleCalendarSettingsError(fallback, null, null);
+};
+
+export const listGoogleCalendars = async (): Promise<GoogleCalendarOption[]> => {
+  const { data, error } = await supabase.functions.invoke('calendar-list', { body: {} });
+  if (error) throw await calendarSettingsFailure(error, 'Não foi possível carregar suas agendas agora. Tente novamente.');
+  return Array.isArray(data?.calendars) ? data.calendars as GoogleCalendarOption[] : [];
+};
+
+export const selectGoogleCalendar = async (calendar: Pick<GoogleCalendarOption, 'id' | 'summary'>) => {
+  const { data, error } = await supabase.functions.invoke('calendar-select', { body: { calendarId: calendar.id, calendarName: calendar.summary } });
+  if (error) throw await calendarSettingsFailure(error, 'Não foi possível selecionar esta agenda. Tente novamente.');
+  return data as { connection: { calendar_id: string; calendar_name: string; status: string }; syncQueued: boolean };
+};
+
 export const syncCalendarNow = async () => {
   const { data, error } = await supabase.functions.invoke('calendar-sync-now', { body: {} });
   if (error instanceof FunctionsHttpError) {

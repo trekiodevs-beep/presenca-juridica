@@ -1,39 +1,27 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 
-const functionFiles = [
-  'alarm-evaluator/index.ts',
-  'calendar-connection-status/index.ts',
-  'calendar-list/index.ts',
-  'calendar-oauth-callback/index.ts',
-  'calendar-oauth-start/index.ts',
-  'calendar-reconcile/index.ts',
-  'calendar-select/index.ts',
-  'calendar-sync-now/index.ts',
-  'calendar-sync-worker/index.ts',
-  'calendar-webhook/index.ts',
-  'platform-admin/index.ts',
-  'portal-document-download/index.ts',
-  'privacy-controls/index.ts',
-  'support-access/index.ts',
-  'support-requests/index.ts',
-  'team-invitations/index.ts',
-];
+const functionsRoot = resolve(process.cwd(), 'supabase', 'functions');
+const functionFiles = readdirSync(functionsRoot, { withFileTypes: true })
+  .filter(entry => entry.isDirectory() && entry.name !== '_shared')
+  .map(entry => `${entry.name}/index.ts`);
 
 const source = (relativePath: string) =>
   readFileSync(resolve(process.cwd(), 'supabase', 'functions', relativePath), 'utf8');
 
-test('Edge Functions prefer the project-managed service role over a legacy override', () => {
+test('No Edge Function accepts the removed BACKEND_SERVICE_ROLE_KEY override', () => {
   for (const file of functionFiles) {
     const code = source(file);
-    const managedKey = code.indexOf("Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')");
-    const legacyKey = code.indexOf("Deno.env.get('BACKEND_SERVICE_ROLE_KEY')");
+    assert.doesNotMatch(code, /BACKEND_SERVICE_ROLE_KEY/, `${file} must not accept the removed legacy override`);
+  }
+});
 
-    assert.notEqual(managedKey, -1, `${file} must read SUPABASE_SERVICE_ROLE_KEY`);
-    assert.notEqual(legacyKey, -1, `${file} must retain BACKEND_SERVICE_ROLE_KEY as a local fallback`);
-    assert.ok(managedKey < legacyKey, `${file} must not let a stale legacy key override the project-managed key`);
+test('Every privileged Edge Function uses a project-managed backend key', () => {
+  for (const file of functionFiles.filter(file => /SUPABASE_SERVICE_ROLE_KEY/.test(source(file)))) {
+    const code = source(file);
+    assert.match(code, /Deno\.env\.get\('SUPABASE_SERVICE_ROLE_KEY'\)/, `${file} must read the project-managed service role`);
   }
 });
 
@@ -67,6 +55,18 @@ test('Manual Calendar sync resolves tenant and connection deterministically', ()
   assert.match(code, /error: connectionError/);
   assert.match(code, /eq\('user_id', auth\.user\.id\)[\s\S]*eq\('provider', 'google'\)/);
   assert.match(code, /calendar-sync-now downstream returned non-success/);
+});
+
+test('Calendar list and selection are tenant-scoped and preserve database errors', () => {
+  for (const file of ['calendar-list/index.ts', 'calendar-select/index.ts']) {
+    const code = source(file);
+    assert.match(code, /from\('memberships'\)/, `${file} must resolve the active office`);
+    assert.match(code, /error: membershipError/, `${file} must preserve membership query errors`);
+    assert.match(code, /eq\('office_id', membership\.office_id\)/, `${file} must scope the connection by office`);
+    assert.match(code, /eq\('user_id', authData\.user\.id\)/, `${file} must scope the connection by user`);
+  }
+  assert.match(source('calendar-list/index.ts'), /google_reauthorization_required/);
+  assert.match(source('calendar-select/index.ts'), /syncQueued: !enqueueError/);
 });
 
 test('Calendar connection status distinguishes missing authentication from server configuration', () => {
