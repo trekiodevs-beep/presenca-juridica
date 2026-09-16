@@ -49,7 +49,7 @@ export const Billing = () => {
     try {
       setLoadingBilling(true);
       await updateBillingMethod(billingType);
-      showToast('Forma de pagamento atualizada para as cobranças atuais e futuras.', 'success');
+      showToast('Forma de pagamento atualizada nas cobranças pendentes e futuras.', 'success');
       setPayments((await getBillingSummary()).payments);
     } catch (error) { console.error(error); showToast('Não foi possível alterar a forma de pagamento.', 'error'); }
     finally { setLoadingBilling(false); }
@@ -151,7 +151,8 @@ export const Billing = () => {
       {office?.billingSubscriptionId && canManage && <Card>
         <CardHeader><CardTitle>Forma de pagamento e cobranças</CardTitle></CardHeader>
         <CardContent className="space-y-5">
-          <div className="flex flex-col gap-3 md:flex-row md:items-end"><label className="flex-1 text-sm font-medium text-slate-700">Forma de pagamento<select className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3" value={billingType} onChange={event => setBillingType(event.target.value as typeof billingType)}><option value="PIX">Pix</option><option value="BOLETO">Boleto</option><option value="CREDIT_CARD">Cartão pelo ambiente seguro do Asaas</option></select></label><Button variant="outline" disabled={loadingBilling} onClick={handleBillingMethod}>Salvar forma de pagamento</Button></div>
+          <div className="flex flex-col gap-3 md:flex-row md:items-end"><label className="flex-1 text-sm font-medium text-slate-700">Forma de pagamento<select className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3" value={billingType} onChange={event => setBillingType(event.target.value as typeof billingType)}><option value="PIX">Pix</option><option value="BOLETO">Boleto</option><option value="CREDIT_CARD">Cartão (troca indisponível nesta tela)</option></select></label><Button variant="outline" disabled={loadingBilling || billingType === 'CREDIT_CARD'} onClick={handleBillingMethod}>Salvar forma de pagamento</Button></div>
+          {billingType === 'CREDIT_CARD' && <p className="text-xs text-slate-500">A substituição do cartão exige uma jornada segura específica do Asaas e ainda não está disponível nesta tela.</p>}
           {billingError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{billingError}</p>}
           <div className="overflow-x-auto"><table className="min-w-[520px] w-full text-left text-sm"><thead><tr className="border-b text-xs uppercase text-slate-500"><th className="py-2">Vencimento</th><th>Status</th><th>Valor</th><th className="text-right">Documento</th></tr></thead><tbody>{payments.map(payment => <tr key={payment.id} className="border-b border-slate-100"><td className="py-3">{payment.dueDate ? new Date(`${payment.dueDate}T12:00:00`).toLocaleDateString('pt-BR') : '—'}</td><td>{payment.status}</td><td>{payment.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td><td className="text-right">{(payment.bankSlipUrl || payment.invoiceUrl) ? <a className="font-semibold text-brand-700" href={payment.bankSlipUrl || payment.invoiceUrl || '#'} target="_blank" rel="noreferrer">Abrir 2ª via</a> : '—'}</td></tr>)}</tbody></table>{!loadingBilling && !billingError && payments.length === 0 && <p className="py-5 text-center text-sm text-slate-500">Nenhuma cobrança gerada.</p>}</div>
         </CardContent>

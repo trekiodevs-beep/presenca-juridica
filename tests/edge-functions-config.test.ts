@@ -139,3 +139,35 @@ test('Calendar outbox is enqueued only after its parent event exists', () => {
   assert.match(pendingStatusFix, /update public\.calendar_events\s+set sync_status = 'pending', sync_error = null/i);
   assert.match(pendingStatusFix, /sync_status is distinct from 'pending'/i);
 });
+
+test('Asaas recurring Checkout follows the current contract and persists correlation first', () => {
+  const code = source('billing-create-checkout/index.ts');
+  const localInsert = code.indexOf("from('billing_checkout_sessions').insert");
+  const remoteCheckout = code.indexOf("asaasRequest('checkouts'");
+
+  assert.match(code, /minutesToExpire: 60/);
+  assert.match(code, /expiredUrl:/);
+  assert.match(code, /checkout\.link/);
+  assert.match(code, /subscription: \{ cycle:[^}]+nextDueDate:/);
+  assert.doesNotMatch(code, /subscription: \{[^}]*value:/);
+  assert.match(code, /subscription_id: subscriptionId/);
+  assert.ok(localInsert >= 0 && remoteCheckout > localInsert, 'local correlation must exist before the remote Checkout');
+});
+
+test('Asaas webhook handles Checkout events and re-enters failed deliveries', () => {
+  const code = source('billing-webhook/index.ts');
+
+  assert.match(code, /eventType\.startsWith\('CHECKOUT_'\)/);
+  assert.match(code, /eventType === 'CHECKOUT_PAID'/);
+  assert.match(code, /processing_status === 'PROCESSED'/);
+  assert.match(code, /processing_status: 'PROCESSING'/);
+  assert.match(code, /processing_status: 'FAILED'/);
+  assert.match(code, /attempt_count: attemptCount/);
+  assert.doesNotMatch(code, /23505'\) return reply\(\{ received: true, duplicate: true \}\)/);
+});
+
+test('Billing mutations state their pending-payment and card boundaries explicitly', () => {
+  assert.match(source('billing-change-plan/index.ts'), /updatePendingPayments: true/);
+  assert.match(source('billing-update-method/index.ts'), /credit_card_update_not_implemented/);
+  assert.match(source('billing-update-method/index.ts'), /updatePendingPayments: true/);
+});

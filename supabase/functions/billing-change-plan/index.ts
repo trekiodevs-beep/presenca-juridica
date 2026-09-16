@@ -14,10 +14,10 @@ Deno.serve(async request => {
   if (!subscription?.provider_subscription_id) return json(request, { error: 'Nenhuma assinatura ativa foi encontrada.', code: 'subscription_not_found' }, 404);
   if (!price) return json(request, { error: 'Plano indisponível.', code: 'price_unavailable' }, 409);
   try {
-    const provider = await asaasRequest(`subscriptions/${encodeURIComponent(String(subscription.provider_subscription_id))}`, { method: 'PUT', body: JSON.stringify({ value: Number(price.amount_cents) / 100, cycle: price.interval_unit, description: `Presença Jurídica — ${priceCode}` }) });
+    const provider = await asaasRequest(`subscriptions/${encodeURIComponent(String(subscription.provider_subscription_id))}`, { method: 'PUT', body: JSON.stringify({ value: Number(price.amount_cents) / 100, cycle: price.interval_unit, description: `Presença Jurídica — ${priceCode}`, updatePendingPayments: true }) });
     await admin.from('billing_subscriptions').update({ price_code: priceCode, provider_snapshot: provider, updated_at: new Date().toISOString() }).eq('id', subscription.id);
     await admin.from('offices').update({ price_code: priceCode, updated_at: new Date().toISOString() }).eq('id', officeId);
-    return json(request, { priceCode, status: subscription.status, effective: 'next_charge' });
+    return json(request, { priceCode, status: subscription.status, effective: 'pending_and_future_charges' });
   } catch (error) {
     console.error('billing-change-plan provider request failed', { officeId, priceCode, message: error instanceof Error ? error.message : String(error) });
     return json(request, { error: 'Não foi possível alterar o plano agora. Tente novamente.', code: 'provider_plan_change_failed' }, 502);

@@ -1,6 +1,6 @@
 # Padrão replicável de cobrança SaaS — Asaas + Supabase
 
-Este documento define o padrão de referência para SaaS brasileiros com teste gratuito, planos recorrentes, cancelamento imediato pelo cliente e backend Supabase Edge Functions. A implementação deste repositório é o exemplo operacional.
+Este documento descreve a implementação local de referência para teste gratuito, planos recorrentes e backend Supabase Edge Functions. Ela permanece **NÃO HOMOLOGADA** até concluir migration remota, publicação das Functions e E2E no Sandbox.
 
 ## Decisão comercial
 
@@ -10,7 +10,7 @@ Este documento define o padrão de referência para SaaS brasileiros com teste g
 - Trimestral: R$ 299,70 por ciclo (R$ 99,90/mês).
 - Semestral: R$ 509,40 por ciclo (R$ 84,90/mês).
 - Anual: R$ 958,80 por ciclo (R$ 79,90/mês).
-- Cancelamento: disponível ao proprietário/administrador; encerra cobranças futuras no Asaas e mantém o acesso até o fim do período já pago.
+- Cancelamento: disponível ao proprietário/administrador; a remoção da assinatura no Asaas também remove cobranças pendentes e vencidas. O CRM preserva localmente o acesso somente até `current_period_end` quando esse período já estiver pago. Essa regra precisa de aceite comercial explícito antes de produção.
 
 Os códigos de preço são estáveis e não devem ser substituídos por valores enviados pelo navegador: `core_monthly`, `core_quarterly`, `core_semiannual` e `core_annual`.
 
@@ -25,7 +25,7 @@ Os códigos de preço são estáveis e não devem ser substituídos por valores 
 
 ## Modelo de dados
 
-A migration `20260916000200_billing_asaas_core.sql` cria:
+As migrations `20260916000200_billing_asaas_core.sql` e `20260916000300_billing_checkout_integrity.sql` criam:
 
 - `billing_products` e `billing_prices`: catálogo versionado de produto/preço.
 - `billing_customers`: vínculo escritório–cliente Asaas; somente últimos quatro dígitos são persistidos.
@@ -44,7 +44,7 @@ Todas as tabelas possuem RLS. Leitura do catálogo e da cobrança exige associa�
 | `billing-create-checkout` | POST | Cria cliente e checkout/assinatura para um código de preço. |
 | `billing-summary` | GET | Retorna estado local e histórico seguro de cobranças. |
 | `billing-change-plan` | POST | Altera valor/ciclo da assinatura existente no Asaas. |
-| `billing-update-method` | POST | Atualiza Pix, boleto ou cartão para cobranças futuras. |
+| `billing-update-method` | POST | Alterna Pix/boleto nas cobranças pendentes e futuras. Troca de cartão não está implementada. |
 | `billing-cancel-subscription` | POST | Cancela no Asaas e registra protocolo local. |
 | `billing-webhook` | POST público | Recebe eventos Asaas com autenticação própria e idempotência. |
 
@@ -68,7 +68,7 @@ Criar o webhook apontando para:
 
 `https://<project-ref>.supabase.co/functions/v1/billing-webhook`
 
-Habilitar eventos de cobrança e assinatura. O webhook deve reenviar respostas não-2xx; a inbox local impede duplicidade. Nunca confiar no IP de origem como único controle.
+Habilitar eventos de Checkout (`CHECKOUT_CREATED`, `CHECKOUT_PAID`, `CHECKOUT_CANCELED`, `CHECKOUT_EXPIRED`), cobrança e assinatura. O webhook reprocessa eventos persistidos em `FAILED` quando o Asaas repete uma entrega não-2xx; eventos já `PROCESSED` são idempotentes. Nunca confiar no IP de origem como único controle.
 
 ## Implantação
 
@@ -96,15 +96,28 @@ Validar no output da migration `Applying migration ...` e `Finished supabase db 
 - [Edge Functions e autenticação Supabase](https://supabase.com/docs/guides/functions/auth)
 - [RLS Supabase](https://supabase.com/docs/guides/database/postgres/row-level-security)
 
-## Critérios de aceite replicáveis
+## Estado e critérios de aceite
+
+Estado atual: **IMPLEMENTADO LOCALMENTE / NÃO HOMOLOGADO**. Os itens abaixo são critérios pendentes de comprovação no Sandbox, não evidência de que já foram atendidos em produção.
 
 - Nenhuma chave Asaas aparece no bundle, no cliente ou nos logs.
 - Usuário sem associação ativa recebe erro de negócio, nunca dados de outro escritório.
 - Repetição do mesmo webhook não duplica pagamento nem altera o estado duas vezes.
-- Pagamento confirmado ativa o plano e atualiza limites; atraso marca `PAST_DUE`; estorno/chargeback suspende.
-- Cancelamento gera protocolo, remove cobranças futuras no provedor e preserva o acesso pago até `current_period_end`.
+- `CHECKOUT_PAID` e pagamento confirmado ativam o plano; atraso marca `PAST_DUE`; estorno/chargeback suspende.
+- Cancelamento gera protocolo antes da mutação remota; falha do provedor reverte a projeção local. A remoção no Asaas e a preservação local do período pago devem ser verificadas no Sandbox.
 - Mensagens exibidas ao cliente usam vocabulário do produto; detalhes HTTP ficam apenas no log técnico.
-- O teste distingue: código compilado, migration remota, Functions publicadas, configuração de segredos e prova E2E real.
+- O relatório de homologação distingue: código compilado, migration remota, Functions publicadas, configuração de segredos e prova E2E real.
+
+## Pendências obrigatórias de homologação
+
+- Aplicar a migration `20260916000300_billing_checkout_integrity.sql` no projeto vinculado.
+- Publicar novamente todas as Functions de cobrança alteradas.
+- Criar Checkout real no Sandbox e confirmar `id`, `link` e redirecionamentos de sucesso, cancelamento e expiração.
+- Confirmar a sequência `CHECKOUT_PAID` → correlação local → assinatura Asaas → cobrança e período real.
+- Forçar uma falha de processamento, comprovar `FAILED`, repetir o mesmo `id` e comprovar `PROCESSED` com `attempt_count > 1`.
+- Testar boleto com URL inicialmente indisponível e comprovar que não surge uma segunda assinatura remota.
+- Validar cancelamento com cobrança pendente/vencida e obter aceite formal da regra comercial.
+- Implementar uma jornada segura para `PUT /subscriptions/{id}/creditCard` antes de oferecer troca de cartão.
 
 ## Adaptação para outro SaaS
 

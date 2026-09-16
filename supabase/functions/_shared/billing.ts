@@ -32,6 +32,31 @@ export const asaasRequest = async (path: string, init: RequestInit = {}) => {
   return body as Record<string, unknown>;
 };
 
+export const sanitizedAsaasError = (error: unknown) => {
+  const sanitize = (value: unknown, max: number) => String(value || '')
+    .slice(0, max)
+    .replace(/\b\d{6,}\b/g, '[REDACTED_NUMBER]')
+    .replace(/(access[_-]?token|api[_-]?key|authorization)\s*[:=]\s*\S+/gi, '$1=[REDACTED]');
+  const details = error && typeof error === 'object' && 'details' in error
+    ? (error as { details?: unknown }).details
+    : null;
+  const errors = details && typeof details === 'object' && Array.isArray((details as { errors?: unknown[] }).errors)
+    ? (details as { errors: unknown[] }).errors
+        .slice(0, 10)
+        .map(item => item && typeof item === 'object'
+          ? {
+              code: sanitize((item as { code?: unknown }).code, 120),
+              description: sanitize((item as { description?: unknown }).description, 500),
+            }
+          : null)
+        .filter(Boolean)
+    : [];
+  return {
+    message: sanitize(error instanceof Error ? error.message : error, 200),
+    errors,
+  };
+};
+
 export const json = (request: Request, body: unknown, status = 200) => Response.json(body, { status, headers: { ...getCorsHeaders(request), 'cache-control': 'no-store' } });
 
 export const normalizeBillingError = async (request: Request, result: BillingContext | Response) => {

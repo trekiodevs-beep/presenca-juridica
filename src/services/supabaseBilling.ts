@@ -26,7 +26,7 @@ export const createCheckout = async (priceCode: string, cpfCnpj: string, billing
 export const changePlan = async (priceCode: string) => {
   const { data, error } = await supabase.functions.invoke('billing-change-plan', { body: { priceCode } });
   if (error) throw await billingError(error, 'Não foi possível alterar o plano. Tente novamente.');
-  return data as { priceCode: string; status: string; effective: string };
+  return data as { priceCode: string; status: string; effective: 'pending_and_future_charges' };
 };
 export const getBillingSummary = async (): Promise<BillingSummary> => {
   const { data, error } = await supabase.functions.invoke('billing-summary', { method: 'GET' });
