@@ -19,7 +19,10 @@ Deno.serve(async (request) => {
   const state = url.searchParams.get('state');
   const code = url.searchParams.get('code');
   const appUrl = Deno.env.get('APP_URL') || 'http://127.0.0.1:3000';
-  const redirect = (result: string) => Response.redirect(`${appUrl}/settings?calendar=${result}`, 303);
+  const redirect = (result: string) => new Response(null, {
+    status: 303,
+    headers: { location: `${appUrl}/settings?calendar=${result}`, 'cache-control': 'no-store' },
+  });
   if (!state || !code) return redirect('error');
   let stage = 'configuration';
   try {

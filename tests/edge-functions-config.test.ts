@@ -40,7 +40,7 @@ test('Calendar OAuth callback does not mask database failures as invalid state',
 
   assert.match(callback, /error: stateError/);
   assert.match(callback, /if \(stateError\)/);
-  assert.match(callback, /const redirect = \(result: string\) => Response\.redirect/);
+  assert.match(callback, /const redirect = \(result: string\) => new Response/);
   assert.match(callback, /return redirect\('server_error'\)/);
   assert.match(callback, /openidconnect\.googleapis\.com\/v1\/userinfo/);
   assert.match(start, /scope: 'openid email /);
