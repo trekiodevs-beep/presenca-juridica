@@ -137,6 +137,17 @@ test('public OAuth entry page exposes the privacy policy and Google data disclos
   assert.match(legal, /não personalizados de inteligência artificial/);
 });
 
+test('OAuth homepage is public and explains the application before login', () => {
+  const app = source('src/App.tsx');
+  const home = source('src/pages/PublicHome.tsx');
+
+  assert.match(app, /path="\/sobre-o-app" element={<PublicHome \/>}/);
+  assert.match(home, /Presença Jurídica CRM/);
+  assert.match(home, /software de apoio à organização comercial e operacional de escritórios/);
+  assert.match(home, /to="\/legal\/privacidade"/);
+  assert.match(home, /to="\/login"/);
+});
+
 test('contact cards omit empty operational counters', () => {
   const leads = source('src/pages/Leads.tsx');
   assert.match(leads, /signals\.documentCount > 0/);

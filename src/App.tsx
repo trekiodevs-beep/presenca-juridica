@@ -11,6 +11,7 @@ import { ToastProvider } from './context/ToastContext';
 
 const Layout = lazy(() => import('./components/layout/Layout').then(module => ({ default: module.Layout })));
 const Login = lazy(() => import('./pages/Login').then(module => ({ default: module.Login })));
+const PublicHome = lazy(() => import('./pages/PublicHome').then(module => ({ default: module.PublicHome })));
 const Hoje = lazy(() => import('./pages/Hoje').then(module => ({ default: module.Hoje })));
 const Leads = lazy(() => import('./pages/Leads').then(module => ({ default: module.Leads })));
 const LeadDetail = lazy(() => import('./pages/LeadDetail').then(module => ({ default: module.LeadDetail })));
@@ -46,6 +47,7 @@ export default function App() {
             <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Carregando…</div>}>
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/sobre-o-app" element={<PublicHome />} />
               <Route path="/public/:officeSlug/contact" element={<PublicForm />} />
               <Route path="/o/:officeSlug" element={<OfficePublicPage />} />
               <Route path="/portal/cliente/:token" element={<PublicClientPortal />} />
