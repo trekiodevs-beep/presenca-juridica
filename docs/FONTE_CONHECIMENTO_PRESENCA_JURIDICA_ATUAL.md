@@ -1,8 +1,8 @@
 # Presença Jurídica CRM — Fonte de Conhecimento Canônica
 
-> **Data da inspeção:** 15/09/2026  
-> **Base:** checkout local `main`, incluindo alterações locais não commitadas presentes durante a inspeção.  
-> **Escopo:** inspeção documental e classificação do estado real do repositório. Nenhuma funcionalidade foi implementada, nenhum redesign foi feito e nenhum problema encontrado foi corrigido nesta etapa.
+> **Data da atualização:** 16/09/2026  
+> **Base:** `main` no commit `8fd2299`, com migration e Functions Supabase de billing publicadas no projeto `uwuhynvzalxvjvgersld`.  
+> **Escopo:** fonte canônica atualizada após a implementação Asaas; publicação remota foi comprovada, mas credenciais e pagamento Sandbox ponta a ponta continuam gates operacionais.
 
 ## 1. Resumo executivo
 
@@ -14,8 +14,8 @@ O estado funcional é misto:
 
 - **IMPLEMENTADO no código:** login Google via Supabase, escritório/membership, contatos internos, dossiê, situação, próxima providência, timeline, tarefas, agenda local, financeiro interno, upload/documentos, portal, equipe, privacidade, suporte, alertas operacionais e integrações de calendário preparadas.
 - **DEMO:** caminho alternativo baseado em `VITE_USE_MOCK_DATA=true`, estado fictício em `localStorage` e `mockData.ts`.
-- **PARCIAL/NÃO COMPROVADO:** upload real, portal real, Google Calendar ponta a ponta, Realtime remoto, papéis/RLS no ambiente remoto, suporte autorizado, e-mail transacional e deploy. A leitura e a criação pública de leads possuem RPCs dedicadas e foram comprovadas no Supabase local descartável; o ambiente remoto/produção continua não comprovado.
-- **NÃO ENTREGUE como integração vigente:** cobrança Asaas no frontend atual; `src/services/supabaseBilling.ts` ainda retorna `Provedor de cobrança ainda não configurado` para checkout, troca de plano e forma de pagamento.
+- **PARCIAL/NÃO COMPROVADO:** upload real, portal real, Google Calendar ponta a ponta, Realtime remoto, papéis/RLS completos no ambiente remoto, suporte autorizado, e-mail transacional e pagamento real. A leitura e a criação pública de leads possuem RPCs dedicadas e foram comprovadas no Supabase local descartável; o fluxo Asaas está publicado, porém o E2E de pagamento Sandbox ainda precisa ser executado.
+- **IMPLEMENTADO na arquitetura vigente:** cobrança recorrente Asaas via Edge Functions, migration de catálogo/assinaturas/pagamentos, webhook idempotente, cancelamento, troca de plano e resumo de cobrança. A documentação replicável está em `docs/saas-billing-asaas-supabase.md`.
 
 Há artefatos Firebase ainda presentes — dependência npm, `functions/`, regras, configurações e testes — mas eles não são a arquitetura de execução usada pelos serviços atuais do frontend. Devem ser tratados como **arquitetura histórica/superseded**, salvo quando citados neste documento como legado ou risco de manutenção.
 
@@ -33,7 +33,7 @@ Há artefatos Firebase ainda presentes — dependência npm, `functions/`, regra
 | Agenda interna | IMPLEMENTADO no código | `Agenda`, `LeadDetail`, `calendar_events` | Banco e sincronização remota não testados |
 | Google Calendar | PARCIAL/PLANEJADO PARA HOMOLOGAÇÃO | 13 Edge Functions e migrations de sync | OAuth, scheduler, webhook e conta Google não comprovados |
 | Financeiro interno | IMPLEMENTADO no código | `Finance`, `financial_records` | Cobrança recorrente é separada e não está conectada |
-| Cobrança recorrente | PARCIAL | UI de planos; serviço Supabase stub | Asaas está somente no legado Firebase |
+| Cobrança recorrente | IMPLEMENTADO; E2E PENDENTE | `billing-*`, migration `20260916000200`, UI e webhook Asaas | Falta executar pagamento Sandbox e validar evento recebido |
 | Portal do cliente | PARCIAL | `Portal`, `PublicClientPortal`, tabela e Function de download | Acesso público real não executado |
 | Documentos | PARCIAL | Storage privado, `lead_documents`, upload e signed URL | Upload/baixa/RLS não executados |
 | Alertas operacionais | IMPLEMENTADO no código | tabelas, RPCs, Function e hook | Avaliação real não executada |
@@ -251,7 +251,7 @@ O roteamento não substitui RLS/backend authorization. A proteção de tela é U
 | Agenda interna | IMPLEMENTADO no código | CRUD, vínculo ao contato, status, exclusão lógica e fila de sync |
 | Google Calendar | PARCIAL/PLANEJADO PARA HOMOLOGAÇÃO | OAuth/sync/reconcile/conflict codificados; runtime externo não comprovado |
 | Financeiro | IMPLEMENTADO no código | `financial_records`, tela Finance e lançamento no dossiê |
-| Cobrança/assinatura | PARCIAL | planos/status/limites na UI; serviço de checkout ainda stub |
+| Cobrança/assinatura | IMPLEMENTADO; E2E PENDENTE | catálogo versionado, checkout, assinatura, cancelamento e webhook Asaas |
 | Portal do cliente | PARCIAL | geração, atualização, link, preview e rota pública; runtime/RLS não comprovados |
 | Configurações | IMPLEMENTADO no código | escritório, endereço público, mensagem WhatsApp e Google Calendar |
 | Canais de entrada | IMPLEMENTADO; entrada pública comprovada localmente | links, cópia, página pública e teste interno; ambiente remoto não comprovado |
@@ -306,7 +306,7 @@ No código, o frontend real lê/escreve Postgres via Supabase JS, usa Realtime e
 - **Google OAuth/Calendar:** codificado em Edge Functions, com refresh token cifrado, `calendar_connections`, fila, sync incremental, snapshots, conflitos e reconciliação. OAuth, webhook, scheduler, secrets, `events.watch` e uso bidirecional real não foram comprovados.
 - **WhatsApp:** links `wa.me` com mensagem pré-preenchida; ação humana no aplicativo externo. Não há API oficial de envio no frontend atual.
 - **Resend:** integração server-side em `_shared/email.ts` e uso por convites; API key e domínio não foram comprovados.
-- **Asaas:** implementação completa aparece em `functions/src/index.ts`, mas esse backend usa Firebase/Firestore legado; o serviço usado pela UI Supabase é stub. Cobrança atual deve ser classificada como PARCIAL.
+- **Asaas:** integração vigente está em `supabase/functions/billing-*`, com segredos server-side, catálogo versionado, checkout, assinatura, cancelamento e inbox idempotente de webhook. `functions/src/index.ts` permanece legado Firebase e não deve ser usado para novas cobranças.
 - **IBGE/municípios:** `CityStateFields.tsx` consulta sugestões de município; não há prova de disponibilidade externa durante esta auditoria.
 - **Coolify/Docker/Nginx:** Dockerfile, Compose, healthcheck `/healthz` e instruções existem; imagem, deploy, domínio e HTTPS não foram comprovados.
 
@@ -416,7 +416,7 @@ Uma anotação operacional anterior registrou aplicação remota da migration de
 - Separar e completar o caminho demo das rotas públicas, ou remover helpers demo não utilizados.
 - Homologar no Supabase remoto as RPCs públicas de leitura e criação; adicionar rate limiting/antispam em gate próprio.
 - Substituir ou remover dependência, regras, config e Functions Firebase quando a retirada do legado for autorizada.
-- Remover ou implementar o stub de cobrança Supabase; alinhar o provedor real à arquitetura vigente.
+- Executar e registrar o E2E Sandbox do Asaas; configurar webhook de produção antes da ativação comercial.
 - Completar validação live de RLS com dois escritórios e todos os papéis.
 - Homologar Storage, portal, signed URLs, expiração e enumeração de tokens.
 - Homologar scheduler, webhook, OAuth, token expirado, `410 Gone`, retry, dead-letter e conflitos do Google Calendar.
@@ -431,7 +431,7 @@ Uma anotação operacional anterior registrou aplicação remota da migration de
 1. **P0 potencial — ambiente remoto não homologado:** leitura e criação foram comprovadas no Supabase local, mas o projeto remoto/produção ainda pode estar sem migrations, grants, RLS ou funções alinhadas.
 2. **P1 — portal bearer token:** leitura pública é ampla para registros ativos; o risco depende de entropia, não enumeração, expiração, revogação e rate limiting não comprovados.
 3. **P1 — divergência de backends:** Firebase legado continua compilável e documentado enquanto o frontend vigente usa Supabase; deploy equivocado pode publicar serviços incompatíveis.
-4. **P1 — cobrança:** a UI apresenta planos, mas checkout/troca/forma de pagamento não estão conectados ao backend Supabase atual.
+4. **P1 — cobrança:** o fluxo Asaas está publicado, mas sem prova registrada de pagamento Sandbox, recebimento de webhook e ativação automática do plano.
 5. **P1 — produção não demonstrada:** build local não prova migrations, secrets, Functions, domínio, HTTPS ou runtime.
 6. **P2 — demo inconsistente:** portal usa localStorage no mock, mas entrada pública ainda chama Supabase; um roteiro demonstrativo pode depender de estado/ambiente incorreto.
 7. **P2 — MFA legado:** existe UI e contrato de contexto, mas não há implementação Supabase atual.
@@ -486,7 +486,7 @@ Os itens seguintes permanecem no checkout, mas não devem ser lidos como backend
 5. **Gate de jornada:** validar especificamente contato → dossiê → triagem → próxima providência → tarefa/agenda/financeiro → portal.
 6. **Gate de arquivos/portal:** validar upload, visibility, signed URL, token inválido/expirado, revogação e tentativa cross-tenant.
 7. **Gate Google:** validar OAuth, seleção, CRUD nos dois sentidos, scheduler, webhook, retries, `410 Gone`, conflitos e auditoria.
-8. **Gate comercial:** decidir backend de billing vigente, configurar secrets e validar checkout, cobrança, cancelamento e estado somente leitura.
+8. **Gate comercial:** concluído em código/publicação; falta homologar checkout, cobrança, webhook, cancelamento e estado somente leitura no Sandbox.
 9. **Gate de deploy:** construir Docker, publicar em ambiente de homologação, conferir `/healthz`, HTTPS, Auth URLs, Functions, secrets e migrations.
 10. **Gate UX/uso real:** repetir mobile/desktop com navegador/dispositivo real, acessibilidade, feedback, dupla ação e recuperação de desconexão.
 11. **Gate de piloto:** somente após zero P0/P1 aberto, isolamento real, portal/Storage/Google testados e participantes humanos concluírem o roteiro.

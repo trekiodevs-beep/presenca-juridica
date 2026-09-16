@@ -15,7 +15,7 @@
 - `calendar-sync-worker` processa CRM → Google; `calendar-reconcile` processa Google → CRM com `syncToken`.
 - O scheduler deve chamar ambos com `CALENDAR_SYNC_WORKER_SECRET`; o webhook apenas agenda uma reconciliação.
 - Exclusões são lógicas e conflitos ficam explícitos até decisão do usuário.
-- Cobrança permanece desabilitada até gateway, webhook idempotente e homologação.
+- Cobrança Asaas está implementada e publicada nas Functions `billing-*`; ativação comercial depende da homologação Sandbox do checkout, webhook, cancelamento e atualização do plano.
 
 ## Variáveis de backend
 
@@ -26,6 +26,9 @@
 - CALENDAR_TOKEN_ENCRYPTION_KEY
 - CALENDAR_SYNC_WORKER_SECRET
 - GOOGLE_CALENDAR_WEBHOOK_TOKEN
+- ASAAS_API_BASE_URL
+- ASAAS_API_KEY
+- ASAAS_WEBHOOK_TOKEN
 
 ## Gates de homologação
 
@@ -35,5 +38,6 @@
 - OAuth, listagem, seleção, CRUD, exclusão, retry, idempotência, reconciliação incremental e conflitos da agenda;
 - suporte autorizado, expiração e trilha de auditoria;
 - backup/restore, logs e alertas.
+- checkout Asaas, confirmação via webhook, duplicidade de evento, atraso, estorno, chargeback e cancelamento com preservação do período pago.
 
 Build local não comprova esses gates externos.

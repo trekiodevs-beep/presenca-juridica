@@ -125,4 +125,12 @@ Runbooks: [interface, feedback e responsividade](docs/interface-feedback-respons
 - Feedback, rollback e prevenção de duplo envio validados.
 - Realtime validado entre duas sessões, com recuperação após desconexão.
 
-Documentação específica: [operação Google Calendar](docs/calendar-google-operacao.md).
+Documentação do Google Calendar:
+
+- [Guia mestre de integração com Google Calendar](docs/guia-mestre-integracao-google-calendar.md): referência reutilizável de arquitetura, OAuth, segurança, sincronização, verificação, testes e produção;
+- [Operação e release do Google Calendar](docs/calendar-google-operacao.md): runbook operacional deste sistema;
+- [Plano de sincronização bidirecional](docs/plano-sincronizacao-google-calendar.md): decisões de produto, modelo e implementação do CRM.
+
+Documentação de cobrança SaaS:
+
+- [Padrão Asaas + Supabase](docs/saas-billing-asaas-supabase.md): arquitetura replicável, catálogo de preços, Edge Functions, webhook idempotente, segurança, homologação e operação.
