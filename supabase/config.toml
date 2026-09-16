@@ -93,3 +93,18 @@ verify_jwt = true
 
 [functions.billing-webhook]
 verify_jwt = false
+
+[functions.billing-create-checkout]
+verify_jwt = false
+
+[functions.billing-summary]
+verify_jwt = false
+
+[functions.billing-change-plan]
+verify_jwt = false
+
+[functions.billing-update-method]
+verify_jwt = false
+
+[functions.billing-cancel-subscription]
+verify_jwt = false
