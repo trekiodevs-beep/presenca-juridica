@@ -1,5 +1,7 @@
 # Google Calendar — operação e release
 
+Este runbook é específico do Presença Jurídica CRM. Para implementar a integração em outros sistemas ou revisar toda a arquitetura, consulte o [Guia mestre de integração com Google Calendar](guia-mestre-integracao-google-calendar.md).
+
 ## Secrets
 
 Configure apenas no ambiente das Edge Functions:

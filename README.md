@@ -78,7 +78,7 @@ O repositório contém a primeira implementação comercial completa da camada S
 - estados de assinatura `TRIALING`, `ACTIVE`, `PAST_DUE`, `GRACE_PERIOD`, `SUSPENDED` e `CANCELED`;
 - bloqueio real de mutações no cliente e nas políticas RLS quando o acesso é somente leitura;
 - tela de Plano e cobrança, equipe, convite por token hash e aceitação vinculada ao e-mail autenticado;
-- Cloud Functions para checkout/troca/cancelamento, cobranças e 2ª via, webhook Asaas transacional, reconciliação, avisos de trial e limites atômicos de usuários, contatos e armazenamento;
+- Supabase Edge Functions para checkout/troca/cancelamento, cobranças e 2ª via, inbox idempotente de webhook Asaas, reconciliação, avisos de trial e limites de usuários, contatos e armazenamento;
 - auditoria de ações sensíveis, migrations SQL versionadas e Edge Functions.
 - MFA opcional, documentos legais/aceite versionado, solicitações LGPD, suporte com consentimento temporário e backup/restauração.
 

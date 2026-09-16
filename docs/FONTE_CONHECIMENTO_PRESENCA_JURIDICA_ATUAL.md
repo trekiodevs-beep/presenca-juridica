@@ -1,8 +1,8 @@
 # Presença Jurídica CRM — Fonte de Conhecimento Canônica
 
-> **Data da atualização:** 16/09/2026  
-> **Base:** `main` no commit `8fd2299`, com migration e Functions Supabase de billing publicadas no projeto `uwuhynvzalxvjvgersld`.  
-> **Escopo:** fonte canônica atualizada após a implementação Asaas; publicação remota foi comprovada, mas credenciais e pagamento Sandbox ponta a ponta continuam gates operacionais.
+> **Data da atualização:** 16/09/2026
+> **Base:** `main` no commit `e54aa1d`; a publicação remota comprovada anteriormente não comprova a migration `20260916000300` nem o redeploy das Functions corrigidas nessa revisão.
+> **Escopo:** fonte canônica atualizada após a implementação Asaas. A revisão `e54aa1d` foi comprovada no GitHub; migration remota, redeploy das Functions corrigidas, credenciais e pagamento Sandbox ponta a ponta continuam gates operacionais.
 
 ## 1. Resumo executivo
 
@@ -14,7 +14,7 @@ O estado funcional é misto:
 
 - **IMPLEMENTADO no código:** login Google via Supabase, escritório/membership, contatos internos, dossiê, situação, próxima providência, timeline, tarefas, agenda local, financeiro interno, upload/documentos, portal, equipe, privacidade, suporte, alertas operacionais e integrações de calendário preparadas.
 - **DEMO:** caminho alternativo baseado em `VITE_USE_MOCK_DATA=true`, estado fictício em `localStorage` e `mockData.ts`.
-- **PARCIAL/NÃO COMPROVADO:** upload real, portal real, Google Calendar ponta a ponta, Realtime remoto, papéis/RLS completos no ambiente remoto, suporte autorizado, e-mail transacional e pagamento real. A leitura e a criação pública de leads possuem RPCs dedicadas e foram comprovadas no Supabase local descartável; o fluxo Asaas está publicado, porém o E2E de pagamento Sandbox ainda precisa ser executado.
+- **PARCIAL/NÃO COMPROVADO:** upload real, portal real, Google Calendar ponta a ponta, Realtime remoto, papéis/RLS completos no ambiente remoto, suporte autorizado, e-mail transacional e pagamento real. A leitura e a criação pública de leads possuem RPCs dedicadas e foram comprovadas no Supabase local descartável; a correção Asaas está no GitHub, porém migration, redeploy e E2E de pagamento Sandbox da revisão atual ainda precisam ser comprovados.
 - **IMPLEMENTADO na arquitetura vigente:** cobrança recorrente Asaas via Edge Functions, migration de catálogo/assinaturas/pagamentos, webhook idempotente, cancelamento, troca de plano e resumo de cobrança. A documentação replicável está em `docs/saas-billing-asaas-supabase.md`.
 
 Há artefatos Firebase ainda presentes — dependência npm, `functions/`, regras, configurações e testes — mas eles não são a arquitetura de execução usada pelos serviços atuais do frontend. Devem ser tratados como **arquitetura histórica/superseded**, salvo quando citados neste documento como legado ou risco de manutenção.
@@ -33,7 +33,7 @@ Há artefatos Firebase ainda presentes — dependência npm, `functions/`, regra
 | Agenda interna | IMPLEMENTADO no código | `Agenda`, `LeadDetail`, `calendar_events` | Banco e sincronização remota não testados |
 | Google Calendar | PARCIAL/PLANEJADO PARA HOMOLOGAÇÃO | 13 Edge Functions e migrations de sync | OAuth, scheduler, webhook e conta Google não comprovados |
 | Financeiro interno | IMPLEMENTADO no código | `Finance`, `financial_records` | Cobrança recorrente é separada e não está conectada |
-| Cobrança recorrente | IMPLEMENTADO; E2E PENDENTE | `billing-*`, migration `20260916000200`, UI e webhook Asaas | Falta executar pagamento Sandbox e validar evento recebido |
+| Cobrança recorrente | CÓDIGO/GITHUB IMPLEMENTADO; RUNTIME PENDENTE | `billing-*`, migrations `20260916000200` e `20260916000300`, UI e webhook Asaas | Falta aplicar migration, redeployar Functions e executar pagamento Sandbox |
 | Portal do cliente | PARCIAL | `Portal`, `PublicClientPortal`, tabela e Function de download | Acesso público real não executado |
 | Documentos | PARCIAL | Storage privado, `lead_documents`, upload e signed URL | Upload/baixa/RLS não executados |
 | Alertas operacionais | IMPLEMENTADO no código | tabelas, RPCs, Function e hook | Avaliação real não executada |
@@ -251,7 +251,7 @@ O roteamento não substitui RLS/backend authorization. A proteção de tela é U
 | Agenda interna | IMPLEMENTADO no código | CRUD, vínculo ao contato, status, exclusão lógica e fila de sync |
 | Google Calendar | PARCIAL/PLANEJADO PARA HOMOLOGAÇÃO | OAuth/sync/reconcile/conflict codificados; runtime externo não comprovado |
 | Financeiro | IMPLEMENTADO no código | `financial_records`, tela Finance e lançamento no dossiê |
-| Cobrança/assinatura | IMPLEMENTADO; E2E PENDENTE | catálogo versionado, checkout, assinatura, cancelamento e webhook Asaas |
+| Cobrança/assinatura | CÓDIGO/GITHUB IMPLEMENTADO; RUNTIME/E2E PENDENTES | catálogo versionado, checkout, assinatura, cancelamento e webhook Asaas |
 | Portal do cliente | PARCIAL | geração, atualização, link, preview e rota pública; runtime/RLS não comprovados |
 | Configurações | IMPLEMENTADO no código | escritório, endereço público, mensagem WhatsApp e Google Calendar |
 | Canais de entrada | IMPLEMENTADO; entrada pública comprovada localmente | links, cópia, página pública e teste interno; ambiente remoto não comprovado |
@@ -431,7 +431,7 @@ Uma anotação operacional anterior registrou aplicação remota da migration de
 1. **P0 potencial — ambiente remoto não homologado:** leitura e criação foram comprovadas no Supabase local, mas o projeto remoto/produção ainda pode estar sem migrations, grants, RLS ou funções alinhadas.
 2. **P1 — portal bearer token:** leitura pública é ampla para registros ativos; o risco depende de entropia, não enumeração, expiração, revogação e rate limiting não comprovados.
 3. **P1 — divergência de backends:** Firebase legado continua compilável e documentado enquanto o frontend vigente usa Supabase; deploy equivocado pode publicar serviços incompatíveis.
-4. **P1 — cobrança:** o fluxo Asaas está publicado, mas sem prova registrada de pagamento Sandbox, recebimento de webhook e ativação automática do plano.
+4. **P1 — cobrança:** a revisão Asaas está publicada no GitHub, mas sem prova da migration/redeploy atuais nem de pagamento Sandbox, recebimento de webhook e ativação automática do plano.
 5. **P1 — produção não demonstrada:** build local não prova migrations, secrets, Functions, domínio, HTTPS ou runtime.
 6. **P2 — demo inconsistente:** portal usa localStorage no mock, mas entrada pública ainda chama Supabase; um roteiro demonstrativo pode depender de estado/ambiente incorreto.
 7. **P2 — MFA legado:** existe UI e contrato de contexto, mas não há implementação Supabase atual.

@@ -15,7 +15,7 @@
 - `calendar-sync-worker` processa CRM → Google; `calendar-reconcile` processa Google → CRM com `syncToken`.
 - O scheduler deve chamar ambos com `CALENDAR_SYNC_WORKER_SECRET`; o webhook apenas agenda uma reconciliação.
 - Exclusões são lógicas e conflitos ficam explícitos até decisão do usuário.
-- Cobrança Asaas está implementada e publicada nas Functions `billing-*`; ativação comercial depende da homologação Sandbox do checkout, webhook, cancelamento e atualização do plano.
+- A correção de cobrança Asaas está implementada e publicada no GitHub em `e54aa1d`; a aplicação remota da migration `20260916000300`, o redeploy das Functions `billing-*` e o E2E Sandbox ainda não foram comprovados para essa revisão.
 
 ## Variáveis de backend
 
