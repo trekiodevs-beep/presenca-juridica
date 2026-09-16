@@ -60,7 +60,12 @@ export const Agenda = () => {
   const handleSync = async () => {
     if (syncing) return;
     setSyncing(true); setSyncMessage('');
-    try { const result = await syncCalendarNow(); setSyncMessage(`${result.queued} pendência(s) enfileirada(s). O worker concluirá o lote.`); }
+    try {
+      const result = await syncCalendarNow();
+      setSyncMessage(result.queued > 0
+        ? `${result.queued} ${result.queued === 1 ? 'compromisso foi enviado' : 'compromissos foram enviados'} para sincronização com o Google Agenda.`
+        : 'Agenda sincronizada. Seus compromissos já estão atualizados.');
+    }
     catch (error) { console.error(error); setSyncMessage(error instanceof CalendarSyncRequestError ? error.message : 'Não foi possível sincronizar a agenda agora. Tente novamente.'); }
     finally { setSyncing(false); }
   };
@@ -68,7 +73,7 @@ export const Agenda = () => {
   const handleDelete = async () => {
     if (!eventToDelete) return;
     setUpdatingEventId(eventToDelete);
-    try { await removeCalendarEvent(eventToDelete); showToast('Compromisso excluído e colocado na fila de sincronização.', 'success'); }
+    try { await removeCalendarEvent(eventToDelete); showToast('Compromisso excluído. A alteração será sincronizada com o Google Agenda.', 'success'); }
     catch (error) { console.error(error); showToast('Não foi possível excluir o compromisso.', 'error', { durationMs: null }); }
     finally { setUpdatingEventId(null); setEventToDelete(null); }
   };
@@ -149,7 +154,7 @@ export const Agenda = () => {
 
       <Card className="border-slate-200">
         <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-sm"><p className="font-bold text-slate-900">Google Calendar</p><p className="text-slate-500">{connection?.status === 'active' ? `Agenda: ${connection.calendar_name || 'selecionada'}` : 'Conecte uma agenda em Configurações.'}{connection?.last_sync_at ? ` · última sincronização ${new Date(connection.last_sync_at).toLocaleString('pt-BR')}` : ''}</p>{syncMessage && <p className="mt-1 text-xs text-slate-600">{syncMessage}</p>}</div>
+          <div className="text-sm"><p className="font-bold text-slate-900">Google Agenda</p><p className="text-slate-500">{connection?.status === 'active' ? `Agenda conectada: ${connection.calendar_name || 'agenda selecionada'}` : 'Conecte o Google Agenda em Configurações.'}{connection?.last_sync_at ? ` · Última sincronização: ${new Date(connection.last_sync_at).toLocaleString('pt-BR')}` : ''}</p>{syncMessage && <p className="mt-1 text-xs text-slate-600">{syncMessage}</p>}</div>
           <Button type="button" variant="outline" onClick={handleSync} disabled={syncing || connection?.status !== 'active'}><RefreshCw className={cn('mr-2 h-4 w-4', syncing && 'animate-spin')} />{syncing ? 'Sincronizando...' : 'Sincronizar agora'}</Button>
         </CardContent>
       </Card>
@@ -214,7 +219,7 @@ export const Agenda = () => {
                       <div className="min-w-0 border-l-4 border-brand-500 pl-4">
                         <div className="flex flex-wrap items-center gap-2">
                           <h4 className="font-bold text-slate-950">{event.title}</h4>
-                          {event.origin === 'google' && <span className="rounded-md bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-700">Criado no Google</span>}
+                          {event.origin === 'google' && <span className="rounded-md bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-700">Importado do Google Agenda</span>}
                           {event.syncStatus === 'conflict' && <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800"><AlertTriangle className="h-3 w-3" />Conflito</span>}
                           <span className={cn('rounded-md border px-2 py-0.5 text-xs font-semibold', typeStyle[event.type])}>
                             {event.type}

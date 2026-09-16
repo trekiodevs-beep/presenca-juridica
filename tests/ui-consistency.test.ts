@@ -62,7 +62,18 @@ test('Google Calendar settings translates function failures into actionable cust
   assert.doesNotMatch(settings, /if \(error\) throw error;[\s\S]*Não foi possível listar as agendas Google/);
   assert.match(databaseService, /code === 'google_reauthorization_required'/);
   assert.match(databaseService, /Use “Reconectar Google Agenda”/);
-  assert.match(settings, /Nenhuma agenda com permissão de edição foi encontrada/);
+  assert.match(settings, /Nenhuma agenda disponível para sincronização foi encontrada/);
+});
+
+test('Calendar synchronization messages use CRM terminology instead of infrastructure jargon', () => {
+  const agendaPage = source('src/pages/Agenda.tsx');
+  const settingsPage = source('src/pages/Settings.tsx');
+
+  assert.doesNotMatch(agendaPage, /pendência\(s\) enfileirada\(s\)|worker concluirá|lote/);
+  assert.doesNotMatch(settingsPage, /Variáveis ausentes:/);
+  assert.match(agendaPage, /Agenda sincronizada\. Seus compromissos já estão atualizados\./);
+  assert.match(agendaPage, /Importado do Google Agenda/);
+  assert.match(settingsPage, /onde os compromissos do CRM serão sincronizados/);
 });
 
 test('mobile navigation breakpoint and touch-safe Kanban alternative stay present', () => {

@@ -75,13 +75,15 @@ export const Settings = () => {
       if (error || !data?.authorizationUrl) {
         const context = error?.context as { json?: () => Promise<{ missing?: string[] }> } | undefined;
         const details = context?.json ? await context.json().catch(() => ({ missing: [] as string[] })) : { missing: [] as string[] };
-        const missing = Array.isArray(details.missing) ? ` Variáveis ausentes: ${details.missing.join(', ')}.` : '';
-        throw new Error(`${error?.message || 'URL de autorização ausente.'}${missing}`);
+        const missingConfiguration = Array.isArray(details.missing) && details.missing.length > 0;
+        throw new Error(missingConfiguration ? 'calendar_configuration_incomplete' : error?.message || 'calendar_authorization_unavailable');
       }
       window.location.assign(String(data.authorizationUrl));
     } catch (error) {
       console.error(error);
-      showToast(error instanceof Error && error.message.includes('Variáveis ausentes') ? error.message : 'Não foi possível iniciar a conexão com o Google Calendar.', 'error');
+      showToast(error instanceof Error && error.message === 'calendar_configuration_incomplete'
+        ? 'A conexão com o Google Agenda está temporariamente indisponível. Tente novamente mais tarde.'
+        : 'Não foi possível conectar ao Google Agenda agora. Tente novamente.', 'error');
     } finally { setCalendarLoading(false); }
   };
 
@@ -90,7 +92,7 @@ export const Settings = () => {
     try {
       const calendars = await listGoogleCalendars();
       setGoogleCalendars(calendars);
-      showToast(calendars.length > 0 ? 'Agendas Google carregadas. Escolha a agenda de destino.' : 'Nenhuma agenda com permissão de edição foi encontrada nesta conta.', calendars.length > 0 ? 'success' : 'info');
+      showToast(calendars.length > 0 ? 'Agendas disponíveis carregadas. Escolha onde os compromissos do CRM serão sincronizados.' : 'Nenhuma agenda disponível para sincronização foi encontrada nesta conta Google.', calendars.length > 0 ? 'success' : 'info');
     } catch (error) { console.error(error); showToast(error instanceof GoogleCalendarSettingsError ? error.message : 'Não foi possível carregar suas agendas agora. Tente novamente.', 'error'); }
     finally { setCalendarLoading(false); }
   };
@@ -102,7 +104,7 @@ export const Settings = () => {
     try {
       const data = await selectGoogleCalendarConnection(selected);
       setCalendarConnection(current => current ? { ...current, ...data.connection } : current);
-      showToast(data.syncQueued ? 'Agenda Google selecionada e sincronização preparada.' : 'Agenda selecionada. A sincronização automática será retomada em instantes.', data.syncQueued ? 'success' : 'info');
+      showToast(data.syncQueued ? 'Agenda selecionada. Os compromissos do CRM serão sincronizados com o Google Agenda.' : 'Agenda selecionada. A sincronização automática será retomada em instantes.', data.syncQueued ? 'success' : 'info');
     } catch (error) {
       console.error(error);
       showToast(error instanceof GoogleCalendarSettingsError ? error.message : 'Não foi possível selecionar esta agenda. Tente novamente.', 'error');
