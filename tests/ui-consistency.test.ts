@@ -120,6 +120,9 @@ test('public OAuth entry page exposes the privacy policy and Google data disclos
   const login = source('src/pages/Login.tsx');
   const legal = source('src/pages/Legal.tsx');
 
+  assert.match(login, /PRESENÇA JURÍDICA CRM/);
+  assert.match(login, /href="https:\/\/www\.trekio-tecnologia\.com\.br\/"/);
+  assert.match(login, /href="https:\/\/atominteligencia\.com\/"/);
   assert.match(login, /to="\/legal\/privacidade">Política de Privacidade/);
   assert.match(login, /usa os dados do Google Agenda somente para exibir e sincronizar os compromissos/);
   assert.match(legal, /Dados do Google Agenda/);

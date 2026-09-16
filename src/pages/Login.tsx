@@ -87,7 +87,7 @@ export const Login = () => {
           <header className="relative z-20 flex items-center gap-4">
             <img src={brandMark} alt="" className="h-14 w-14 object-contain drop-shadow-[0_0_20px_rgba(0,91,255,.35)]" />
             <div>
-              <p className="text-sm font-semibold tracking-[0.18em] text-white">PRESENÇA JURÍDICA</p>
+              <p className="text-sm font-semibold tracking-[0.18em] text-white">PRESENÇA JURÍDICA CRM</p>
               <p className="mt-1 text-[10px] font-medium tracking-[0.24em] text-[#f2c778]">INTELIGÊNCIA OPERACIONAL</p>
             </div>
           </header>
@@ -121,7 +121,11 @@ export const Login = () => {
           </div>
 
           <footer className="login-footer relative z-20 flex items-center justify-between gap-6 border-t border-white/10 pt-6 text-xs text-slate-500">
-            <span>Tecnologia TrekIO · Método ATOM</span>
+            <span>
+              <a className="transition hover:text-white" href="https://www.trekio-tecnologia.com.br/" target="_blank" rel="noreferrer">Tecnologia TrekIO</a>
+              {' · '}
+              <a className="transition hover:text-white" href="https://atominteligencia.com/" target="_blank" rel="noreferrer">Método ATOM</a>
+            </span>
             <Link className="font-semibold text-slate-400 transition hover:text-white" to="/legal/privacidade">Política de Privacidade</Link>
           </footer>
         </section>
@@ -134,7 +138,7 @@ export const Login = () => {
                 <div className="absolute inset-3 rounded-full bg-blue-500/30 blur-2xl" />
                 <img src={brandMark} alt="Símbolo do Presença Jurídica" className="relative h-28 w-28 object-contain" />
               </div>
-              <p className="mt-3 text-xs font-semibold tracking-[0.2em] text-[#f2c778]">PRESENÇA JURÍDICA</p>
+              <p className="mt-3 text-xs font-semibold tracking-[0.2em] text-[#f2c778]">PRESENÇA JURÍDICA CRM</p>
               <h1 className="mt-3 max-w-sm text-3xl font-semibold leading-tight tracking-[-0.03em] text-white">Sua rotina jurídica em equilíbrio.</h1>
             </div>
 
@@ -207,7 +211,11 @@ export const Login = () => {
               </div>
             </div>
 
-            <p className="mt-6 text-center text-[11px] font-medium tracking-[0.12em] text-slate-600 lg:hidden">TECNOLOGIA TREKIO · MÉTODO ATOM</p>
+            <p className="mt-6 text-center text-[11px] font-medium tracking-[0.12em] text-slate-600 lg:hidden">
+              <a className="transition hover:text-slate-400" href="https://www.trekio-tecnologia.com.br/" target="_blank" rel="noreferrer">TECNOLOGIA TREKIO</a>
+              {' · '}
+              <a className="transition hover:text-slate-400" href="https://atominteligencia.com/" target="_blank" rel="noreferrer">MÉTODO ATOM</a>
+            </p>
           </div>
         </section>
       </div>
