@@ -24,6 +24,7 @@ export const Billing = () => {
   const [confirmingCancellation, setConfirmingCancellation] = useState(false);
   const [billingError, setBillingError] = useState('');
   const currentPlan = getPlan(office?.planCode);
+  const currentPlanName = currentPlan.code === 'trial' ? 'Período de teste' : currentPlan.name;
   const accessMode = getAccessMode(office);
   const canManage = user?.role === 'owner' || user?.role === 'admin';
   const priceOptions = [
@@ -68,7 +69,7 @@ export const Billing = () => {
       }
     } catch (error) {
       console.error(error);
-      showToast('Não foi possível iniciar a cobrança. Verifique se as Cloud Functions estão publicadas.', 'error');
+      showToast('Não foi possível iniciar o pagamento. Confira os dados e tente novamente.', 'error');
     } finally {
       setLoadingPlan(null);
     }
@@ -91,20 +92,22 @@ export const Billing = () => {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-12">
-      <PageHeader title="Plano e cobrança" description="Controle o acesso do escritório, limites e assinatura em um só lugar." breadcrumbItems={[{ label: 'Plano e cobrança' }]} />
+      <PageHeader title="Assinatura e plano" description="Escolha como continuar usando todos os recursos do Presença Jurídica." breadcrumbItems={[{ label: 'Assinatura e plano' }]} />
 
       <Card className="border-brand-200 bg-brand-50/50">
         <CardContent className="flex flex-col gap-4 p-6 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-brand-700">Status atual</p>
-            <h2 className="mt-1 text-2xl font-bold text-slate-900">{currentPlan.name}</h2>
-            <p className="mt-1 text-sm text-slate-600">{office?.subscriptionStatus ? subscriptionLabel[office.subscriptionStatus] : 'Plano ainda não configurado'} · {currentPlan.limits.maxUsers} usuários · {currentPlan.limits.maxContacts.toLocaleString('pt-BR')} contatos</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-brand-700">Seu plano atual</p>
+            <h2 className="mt-1 text-2xl font-bold text-slate-900">{currentPlanName}</h2>
+            <p className="mt-1 text-sm text-slate-600">{office?.subscriptionStatus ? subscriptionLabel[office.subscriptionStatus] : 'Você está no período de teste'} · até {currentPlan.limits.maxUsers} usuários · {currentPlan.limits.maxContacts.toLocaleString('pt-BR')} contatos</p>
           </div>
           <div className="rounded-xl bg-white px-4 py-3 text-sm text-slate-700 shadow-sm ring-1 ring-brand-100">
-            <span className="font-semibold">Acesso:</span> {accessMode === 'full' ? 'completo' : accessMode === 'grace' ? 'completo durante a tolerância' : 'somente leitura'}
+            <span className="font-semibold">Acesso:</span> {accessMode === 'full' ? 'liberado' : accessMode === 'grace' ? 'liberado durante a tolerância' : 'somente leitura'}
           </div>
         </CardContent>
       </Card>
+
+      <Card className="border-brand-200 bg-brand-50/40"><CardContent className="p-6"><h2 className="text-lg font-bold text-slate-900">Como ativar sua assinatura</h2><p className="mt-1 text-sm text-slate-600">Você conclui tudo em poucos passos. O pagamento acontece no ambiente seguro do Asaas.</p><div className="mt-5 grid gap-4 md:grid-cols-3"><div className="flex gap-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-700 text-sm font-bold text-white">1</span><div><p className="font-semibold text-slate-900">Escolha o período</p><p className="text-sm text-slate-600">Quanto maior o período, menor o valor mensal.</p></div></div><div className="flex gap-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-700 text-sm font-bold text-white">2</span><div><p className="font-semibold text-slate-900">Informe o CPF ou CNPJ</p><p className="text-sm text-slate-600">Usamos o documento somente para identificar o pagador.</p></div></div><div className="flex gap-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-700 text-sm font-bold text-white">3</span><div><p className="font-semibold text-slate-900">Finalize com segurança</p><p className="text-sm text-slate-600">Você será levado ao checkout do Asaas.</p></div></div></div></CardContent></Card>
 
       <Card><CardHeader><CardTitle>Uso do plano</CardTitle></CardHeader><CardContent className="grid gap-4 md:grid-cols-3">{([['Usuários', usage?.users || 0, currentPlan.limits.maxUsers], ['Contatos', usage?.contacts || 0, currentPlan.limits.maxContacts], ['Armazenamento', usage?.storageBytes || 0, currentPlan.limits.maxStorageBytes]] as const).map(([label, value, limit]) => { const percent = Math.min(100, Math.round((value / limit) * 100)); const display = label === 'Armazenamento' ? `${(value / 1024 / 1024).toFixed(1)} MB de ${(limit / 1024 / 1024 / 1024).toFixed(1)} GB` : `${value.toLocaleString('pt-BR')} de ${limit.toLocaleString('pt-BR')}`; return <div key={label} className={percent >= 80 ? 'rounded-lg border border-amber-200 bg-amber-50 p-4' : 'rounded-lg bg-slate-50 p-4'}><div className="flex justify-between text-sm"><span className="font-semibold text-slate-800">{label}</span><span>{percent}%</span></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200"><div className={percent >= 100 ? 'h-full bg-red-600' : percent >= 80 ? 'h-full bg-amber-500' : 'h-full bg-brand-600'} style={{ width: `${percent}%` }} /></div><p className="mt-2 text-xs text-slate-500">{display}</p></div>; })}</CardContent></Card>
 
@@ -125,7 +128,7 @@ export const Billing = () => {
                   {CORE_PLAN.features.map(feature => <li key={feature} className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />{feature}</li>)}
                 </ul>
                 <Button disabled={!canManage || isCurrent || loadingPlan !== null} onClick={() => handlePlan(price.code)} className="mt-6 w-full">
-                  {loadingPlan === price.code ? 'Abrindo checkout...' : isCurrent ? 'Plano atual' : 'Escolher período'}
+                  {loadingPlan === price.code ? 'Preparando pagamento...' : isCurrent ? 'Este é seu plano' : 'Continuar com este plano'}
                 </Button>
               </CardContent>
             </Card>
@@ -136,9 +139,9 @@ export const Billing = () => {
       {!office?.billingSubscriptionId && canManage && <Card><CardHeader><CardTitle>Dados do pagador</CardTitle></CardHeader><CardContent><label className="text-sm font-medium text-slate-700">CPF ou CNPJ<input className="mt-1 h-10 w-full max-w-sm rounded-md border border-slate-300 px-3" inputMode="numeric" placeholder="Somente números" value={cpfCnpj} onChange={event => setCpfCnpj(event.target.value.replace(/\D/g, '').slice(0, 14))} /></label><p className="mt-2 text-xs text-slate-500">Enviado diretamente ao backend e ao Asaas; não é salvo no navegador nem no Firestore.</p></CardContent></Card>}
 
       <Card>
-        <CardHeader><CardTitle className="flex items-center gap-2"><CreditCard className="h-4 w-4" /> Gestão da assinatura</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="flex items-center gap-2"><CreditCard className="h-4 w-4" /> Sua assinatura</CardTitle></CardHeader>
         <CardContent className="flex flex-col gap-4 text-sm text-slate-600 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 text-emerald-600" /><p>O pagamento é processado pelo provedor. Os segredos e webhooks ficam no backend; nenhum token de cobrança é exposto no navegador.</p></div>
+          <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 text-emerald-600" /><p>O pagamento é processado com segurança pelo Asaas. Você pode cancelar quando quiser, e o acesso permanece ativo até o fim do período já pago.</p></div>
           <div className="flex gap-2">
             {office?.billingSubscriptionId && office.subscriptionStatus !== 'CANCELED' && <Button variant="outline" onClick={() => setConfirmingCancellation(true)} disabled={!canManage}>Cancelar assinatura</Button>}
             <Button variant="outline" onClick={() => window.open('mailto:suporte@trekio.com.br?subject=Suporte%20de%20cobrança', '_blank')}><ExternalLink className="mr-2 h-4 w-4" />Suporte</Button>
