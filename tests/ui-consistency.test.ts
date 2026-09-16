@@ -125,9 +125,16 @@ test('public OAuth entry page exposes the privacy policy and Google data disclos
   assert.match(login, /href="https:\/\/atominteligencia\.com\/"/);
   assert.match(login, /to="\/legal\/privacidade">Política de Privacidade/);
   assert.match(login, /usa os dados do Google Agenda somente para exibir e sincronizar os compromissos/);
-  assert.match(legal, /Dados do Google Agenda/);
+  assert.match(legal, /Google Agenda/);
   assert.match(legal, /Uso limitado de dados Google/);
   assert.match(legal, /api-services-user-data-policy/);
+  assert.match(legal, /Dados da Conta Google acessados/);
+  assert.match(legal, /Como usamos os dados Google/);
+  assert.match(legal, /Armazenamento dos dados Google/);
+  assert.match(legal, /Compartilhamento e transferência/);
+  assert.match(legal, /Retenção e exclusão/);
+  assert.match(legal, /myaccount\.google\.com\/connections/);
+  assert.match(legal, /não personalizados de inteligência artificial/);
 });
 
 test('contact cards omit empty operational counters', () => {
