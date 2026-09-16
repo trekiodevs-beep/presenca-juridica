@@ -8,6 +8,16 @@ Deno.serve(async request => {
   const admin = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: connection } = await admin.from('calendar_connections').select('office_id, calendar_id').eq('webhook_channel_id', channel).eq('webhook_resource_id', resource).eq('status', 'active').maybeSingle();
   if (!connection) return json({ error: 'Canal desconhecido.' }, 404);
-  await admin.from('calendar_sync_runs').insert({ office_id: connection.office_id, mode: 'webhook', status: 'running' });
+  const workerSecret = Deno.env.get('CALENDAR_SYNC_WORKER_SECRET');
+  if (!workerSecret) return json({ error: 'Configuração incompleta.' }, 500);
+  const reconciliation = await fetch(`${url}/functions/v1/calendar-reconcile`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-calendar-worker-secret': workerSecret },
+    body: JSON.stringify({ officeId: connection.office_id, mode: 'webhook' }),
+  });
+  if (!reconciliation.ok) {
+    console.error('calendar-webhook could not start reconciliation', { officeId: connection.office_id, status: reconciliation.status });
+    return json({ error: 'Não foi possível iniciar a sincronização.' }, 503);
+  }
   return json({ accepted: true }, 202);
 });

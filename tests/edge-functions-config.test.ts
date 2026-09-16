@@ -69,6 +69,23 @@ test('Calendar list and selection are tenant-scoped and preserve database errors
   assert.match(source('calendar-select/index.ts'), /syncQueued: !enqueueError/);
 });
 
+test('Bidirectional Calendar sync registers push delivery and protects concurrent Google edits', () => {
+  const selection = source('calendar-select/index.ts');
+  const webhook = source('calendar-webhook/index.ts');
+  const worker = source('calendar-sync-worker/index.ts');
+  const reconcile = source('calendar-reconcile/index.ts');
+
+  assert.match(selection, /events\/watch/);
+  assert.match(selection, /crypto\.randomUUID\(\)/);
+  assert.match(selection, /webhook_resource_id/);
+  assert.match(webhook, /calendar-reconcile/);
+  assert.match(webhook, /x-calendar-worker-secret/);
+  assert.match(worker, /'if-match'/);
+  assert.match(worker, /response\.status === 412/);
+  assert.match(reconcile, /response\.status === 410/);
+  assert.match(reconcile, /nextSyncToken/);
+});
+
 test('Calendar connection status distinguishes missing authentication from server configuration', () => {
   const code = source('calendar-connection-status/index.ts');
   const authenticationCheck = code.indexOf("if (!authorization) return jsonWithCors(request, { error: 'Autenticação obrigatória.' }, 401)");

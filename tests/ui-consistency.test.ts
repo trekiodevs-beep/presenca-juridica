@@ -76,6 +76,16 @@ test('Calendar synchronization messages use CRM terminology instead of infrastru
   assert.match(settingsPage, /onde os compromissos do CRM serão sincronizados/);
 });
 
+test('Imported Google events can be linked to CRM contacts without exposing that relation to Google', () => {
+  const agendaPage = source('src/pages/Agenda.tsx');
+  const migration = source('supabase/migrations/20260916000100_calendar_local_fields.sql');
+
+  assert.match(agendaPage, /Contato relacionado no CRM/);
+  assert.match(agendaPage, /leadId: editLeadId \|\| null/);
+  assert.match(agendaPage, /Este vínculo é interno do CRM/);
+  assert.doesNotMatch(migration, /update of[^\n]*lead_id/i);
+});
+
 test('mobile navigation breakpoint and touch-safe Kanban alternative stay present', () => {
   assert.match(source('src/components/layout/Sidebar.tsx'), /hidden lg:flex/);
   assert.match(source('src/components/layout/Layout.tsx'), /lg:hidden/);
