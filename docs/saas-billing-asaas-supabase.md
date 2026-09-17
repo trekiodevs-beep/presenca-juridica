@@ -1,6 +1,8 @@
-# Integração de cobrança — Asaas + Supabase
+# Padrão replicável de cobrança SaaS — Asaas + Supabase
 
-Este é o documento canônico da integração Asaas vigente no CRM Presença Jurídica. O código corrigido está versionado na `main` pelo commit `e54aa1d`, mas a revisão continua **NÃO HOMOLOGADA** até comprovar a migration remota `20260916000300`, o redeploy das Edge Functions e o E2E no Sandbox.
+Este documento define o padrão reutilizável de integração Asaas + Supabase e registra sua implementação concreta no CRM Presença Jurídica. As seções de arquitetura, segurança, idempotência, implantação e homologação podem ser adaptadas a outros SaaS; catálogo, preços, textos, limites e regras comerciais pertencem a este produto.
+
+O código corrigido do Presença Jurídica está versionado na `main` pelo commit `e54aa1d`, mas essa revisão continua **NÃO HOMOLOGADA** até comprovar a migration remota `20260916000300`, o redeploy das Edge Functions e o E2E no Sandbox.
 
 ## Estado comprovado
 

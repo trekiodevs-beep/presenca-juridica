@@ -140,6 +140,29 @@ test('Calendar outbox is enqueued only after its parent event exists', () => {
   assert.match(pendingStatusFix, /sync_status is distinct from 'pending'/i);
 });
 
+test('Calendar sync renews Google watch channels before expiration', () => {
+  const code = source('calendar-sync-now/index.ts');
+  assert.match(code, /webhook_expires_at/);
+  assert.match(code, /24 \* 60 \* 60 \* 1000/);
+  assert.match(code, /events\/watch/);
+  assert.match(code, /calendar-webhook/);
+  assert.match(code, /GOOGLE_CALENDAR_WEBHOOK_TOKEN/);
+});
+
+test('Calendar disconnect revokes Google access and delegates atomic local cleanup', () => {
+  const code = source('calendar-disconnect/index.ts');
+  const migration = readFileSync(resolve(process.cwd(), 'supabase', 'migrations', '20260917000100_google_calendar_disconnect.sql'), 'utf8');
+  assert.match(code, /from\('memberships'\)/);
+  assert.match(code, /eq\('status', 'active'\)/);
+  assert.match(code, /channels\/stop/);
+  assert.match(code, /oauth2\.googleapis\.com\/revoke/);
+  assert.match(code, /disconnect_google_calendar_local/);
+  assert.match(migration, /delete from public\.calendar_connections/);
+  assert.match(migration, /set sync_status = 'not_connected'/);
+  assert.match(migration, /google_calendar_disconnected/);
+  assert.doesNotMatch(migration, /external_event_id = null/);
+});
+
 test('Asaas recurring Checkout follows the current contract and persists correlation first', () => {
   const code = source('billing-create-checkout/index.ts');
   const localInsert = code.indexOf("from('billing_checkout_sessions').insert");

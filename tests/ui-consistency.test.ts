@@ -137,11 +137,15 @@ test('public OAuth entry page exposes the privacy policy and Google data disclos
   assert.match(legal, /não personalizados de inteligência artificial/);
 });
 
-test('OAuth homepage is public and explains the application before login', () => {
+test('OAuth homepage is the public root and explains the application before login', () => {
   const app = source('src/App.tsx');
   const home = source('src/pages/PublicHome.tsx');
+  const login = source('src/pages/Login.tsx');
 
+  assert.match(app, /path="\/" element={<PublicHome \/>}/);
   assert.match(app, /path="\/sobre-o-app" element={<PublicHome \/>}/);
+  assert.match(app, /path="hoje" element={<Hoje \/>}/);
+  assert.match(login, /Navigate to="\/hoje"/);
   assert.match(home, /Presença Jurídica CRM/);
   assert.match(home, /software de apoio à organização comercial e operacional de escritórios/);
   assert.match(home, /to="\/legal\/privacidade"/);

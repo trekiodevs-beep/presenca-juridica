@@ -22,7 +22,7 @@ O botão **Sincronizar agora** executa um lote limitado e cria um `calendar_sync
 
 ## Revogação e rollback
 
-Ao revogar a conta Google, marque `calendar_connections.status = 'revoked'`, preserve eventos, snapshots e auditoria, e não apague compromissos locais. Para reconectar, execute o OAuth novamente; a `connection_version` deve ser incrementada por uma rotina de operação quando houver troca de conta.
+O botão **Desconectar** chama `calendar-disconnect`: encerra o canal quando possível, revoga o refresh token, remove a conexão local de forma transacional, cancela pendências quando não há outra conexão ativa e preserva compromissos, snapshots, IDs externos e auditoria. Preservar os IDs evita duplicidade caso a mesma agenda seja conectada novamente. Se o Google estiver indisponível durante a revogação, o CRM elimina sua cópia da credencial e orienta o usuário a confirmar a remoção em `https://myaccount.google.com/connections`.
 
 Em rollback de aplicação, mantenha as migrations aplicadas: os estados e snapshots são compatíveis com o CRUD anterior. Não faça `DROP` de eventos, outbox ou tokens para limpar falhas; corrija a pendência e reprocesse o lote.
 

@@ -397,6 +397,12 @@ export const selectGoogleCalendar = async (calendar: Pick<GoogleCalendarOption, 
   return data as { connection: { calendar_id: string; calendar_name: string; status: string }; syncQueued: boolean };
 };
 
+export const disconnectGoogleCalendar = async () => {
+  const { data, error } = await supabase.functions.invoke('calendar-disconnect', { body: {} });
+  if (error) throw await calendarSettingsFailure(error, 'Não foi possível desconectar o Google Agenda. Tente novamente.');
+  return data as { disconnected: boolean; googleRevoked: boolean; alreadyDisconnected?: boolean };
+};
+
 export const syncCalendarNow = async () => {
   const { data, error } = await supabase.functions.invoke('calendar-sync-now', { body: {} });
   if (error instanceof FunctionsHttpError) {

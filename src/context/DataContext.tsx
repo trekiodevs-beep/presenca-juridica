@@ -18,17 +18,29 @@ import {
   uploadLeadDocument as dbUploadLeadDocument,
   createCalendarEvent as dbCreateCalendarEvent,
   updateCalendarEvent as dbUpdateCalendarEvent,
+  syncCalendarNow,
   deleteCalendarEvent as dbDeleteCalendarEvent,
   createFinancialRecord as dbCreateFinancialRecord,
   updateFinancialRecord as dbUpdateFinancialRecord,
   upsertClientPortalAccess as dbUpsertClientPortalAccess,
 } from '../services/supabaseDb';
+
 import { canWriteOffice } from '../lib/access';
 import { hasPermission } from '../lib/plans';
 import type { Permission } from '../types';
 import { readDemoData, saveDemoData, DEMO_CHANGED, DEMO_STORAGE_KEY } from '../lib/demoStore';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK_DATA === 'true';
+
+const requestCalendarSync = async () => {
+  try {
+    await syncCalendarNow();
+  } catch (error) {
+    // The CRM mutation is already durable. Keep it pending for the next
+    // automatic/manual attempt instead of rolling back valid local work.
+    console.error('Compromisso salvo no CRM, mas a sincronização automática não foi concluída.', error);
+  }
+};
 
 interface DataContextType {
   leads: Lead[];
@@ -377,6 +389,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         console.error('Compromisso criado, mas não foi possível registrar o histórico do contato.', error);
       }
     }
+    void requestCalendarSync();
     return createdEvent.id;
   };
 
@@ -420,6 +433,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     if (previous) setCalendarEvents(current => current.map(event => event.id === id ? { ...event, ...updates, updatedAt: new Date().toISOString() } : event));
     try {
       await dbUpdateCalendarEvent(id, updates);
+      const googleFields = ['title', 'startAt', 'endAt', 'location', 'notes', 'attendees', 'deletedAt'];
+      if (Object.keys(updates).some(key => googleFields.includes(key))) void requestCalendarSync();
     } catch (error) {
       if (previous) setCalendarEvents(current => current.map(event => event.id === id ? previous : event));
       throw error;
@@ -434,6 +449,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
     await dbDeleteCalendarEvent(id);
     setCalendarEvents(current => current.filter(event => event.id !== id));
+    void requestCalendarSync();
   };
 
   const addFinancialRecord = async (recordData: Omit<FinancialRecord, 'id' | 'createdAt' | 'updatedAt' | 'officeId'>) => {

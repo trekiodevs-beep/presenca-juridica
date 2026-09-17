@@ -46,6 +46,7 @@ export default function App() {
           <Router>
             <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Carregando…</div>}>
             <Routes>
+              <Route path="/" element={<PublicHome />} />
               <Route path="/login" element={<Login />} />
               <Route path="/sobre-o-app" element={<PublicHome />} />
               <Route path="/public/:officeSlug/contact" element={<PublicForm />} />
@@ -55,8 +56,8 @@ export default function App() {
               <Route path="/legal/:document" element={<Legal />} />
               <Route path="/status" element={<Status />} />
               
-              <Route path="/" element={<Layout />}>
-                <Route index element={<Hoje />} />
+              <Route element={<Layout />}>
+                <Route path="hoje" element={<Hoje />} />
                 <Route path="onboarding" element={<Onboarding />} />
                 <Route path="leads" element={<Leads />} />
                 <Route path="leads/new" element={<NewLead />} />

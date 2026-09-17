@@ -98,6 +98,7 @@ supabase functions deploy calendar-reconcile --no-verify-jwt
 supabase functions deploy calendar-event-delete
 supabase functions deploy calendar-conflict-resolve
 supabase functions deploy calendar-webhook --no-verify-jwt
+supabase functions deploy calendar-disconnect --no-verify-jwt
 ```
 
 Configure os secrets no Supabase, incluindo `APP_URL`, credenciais OAuth Google, `CALENDAR_TOKEN_ENCRYPTION_KEY`, `CALENDAR_SYNC_WORKER_SECRET` e `GOOGLE_CALENDAR_WEBHOOK_TOKEN`. Nunca coloque refresh tokens ou service-role keys no frontend.

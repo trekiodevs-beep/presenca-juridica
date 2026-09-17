@@ -24,7 +24,7 @@ export const PublicHome = () => (
   <main className="min-h-screen bg-[#05070c] text-white">
     <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-6 py-8 sm:px-10 lg:px-16">
       <header className="flex items-center justify-between gap-6">
-        <Link to="/sobre-o-app" className="flex items-center gap-3" aria-label="Presença Jurídica CRM - página inicial">
+        <Link to="/" className="flex items-center gap-3" aria-label="Presença Jurídica CRM - página inicial">
           <img src="/branding/presenca-juridica-logo-v3.png" alt="" className="h-12 w-12 object-contain" />
           <span>
             <span className="block text-sm font-bold tracking-[0.16em]">PRESENÇA JURÍDICA CRM</span>

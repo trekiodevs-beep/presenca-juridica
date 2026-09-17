@@ -83,6 +83,7 @@ supabase functions deploy calendar-reconcile --no-verify-jwt
 supabase functions deploy calendar-event-delete
 supabase functions deploy calendar-conflict-resolve
 supabase functions deploy calendar-webhook --no-verify-jwt
+supabase functions deploy calendar-disconnect --no-verify-jwt
 supabase functions deploy platform-admin
 supabase functions deploy support-access
 supabase functions deploy support-requests

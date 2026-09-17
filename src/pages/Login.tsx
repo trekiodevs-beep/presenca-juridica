@@ -40,13 +40,13 @@ export const Login = () => {
     );
   }
 
-  if (user) return <Navigate to="/" />;
+  if (user) return <Navigate to="/hoje" />;
 
   const handleLogin = async () => {
     setLoading(true);
     setError('');
     try {
-      if (await login()) navigate('/');
+      if (await login()) navigate('/hoje');
     } catch (err) {
       console.error(err);
       setError('Não foi possível entrar. Verifique sua conta e tente novamente.');
@@ -60,7 +60,7 @@ export const Login = () => {
     setError('');
     try {
       await completeMfaLogin(mfaCode);
-      navigate('/');
+      navigate('/hoje');
     } catch (err) {
       console.error(err);
       setError('Código inválido ou expirado.');

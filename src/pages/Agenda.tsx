@@ -79,7 +79,7 @@ export const Agenda = () => {
     finally { setUpdatingEventId(null); setEventToDelete(null); }
   };
 
-  const startEditing = (event: CalendarEvent) => { setEditingId(event.id); setEditLeadId(event.leadId || ''); setEditTitle(event.title); setEditStartAt(new Date(event.startAt).toISOString().slice(0, 16)); setEditEndAt(event.endAt ? new Date(event.endAt).toISOString().slice(0, 16) : ''); setEditLocation(event.location || ''); setEditNotes(event.notes || ''); };
+  const startEditing = (event: CalendarEvent) => { setEditingId(event.id); setEditLeadId(event.leadId || ''); setEditTitle(event.title); setEditStartAt(format(parseISO(event.startAt), "yyyy-MM-dd'T'HH:mm")); setEditEndAt(event.endAt ? format(parseISO(event.endAt), "yyyy-MM-dd'T'HH:mm") : ''); setEditLocation(event.location || ''); setEditNotes(event.notes || ''); };
   const saveEditing = async () => { if (!editingId || !editTitle.trim() || !editStartAt) return; try { await updateCalendarEvent(editingId, { leadId: editLeadId || null, title: editTitle.trim(), startAt: new Date(editStartAt).toISOString(), endAt: editEndAt ? new Date(editEndAt).toISOString() : null, location: editLocation.trim() || null, notes: editNotes.trim() || null }); setEditingId(null); showToast('Compromisso atualizado. O vínculo com o contato foi salvo no CRM.', 'success'); } catch { showToast('Não foi possível atualizar o compromisso.', 'error'); } };
   const handleEventStatusChange = async (eventId: string, status: CalendarEventStatus) => {
     if (updatingEventId) return;

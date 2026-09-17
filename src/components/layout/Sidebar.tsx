@@ -8,7 +8,7 @@ const navGroups = [
   {
     label: 'Início',
     items: [
-      { name: 'Hoje', path: '/', icon: LayoutDashboard },
+      { name: 'Hoje', path: '/hoje', icon: LayoutDashboard },
       { name: 'Central de atenção', path: '/alertas', icon: Bell },
       { name: 'Primeiros passos', path: '/onboarding', icon: Compass },
     ],
@@ -74,7 +74,6 @@ export const Sidebar = ({
   const { logout, user } = useAuth();
 
   const isActivePath = (path: string) => {
-    if (path === '/') return pathname === '/';
     return pathname === path || pathname.startsWith(`${path}/`);
   };
 

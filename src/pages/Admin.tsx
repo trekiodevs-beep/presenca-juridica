@@ -41,7 +41,7 @@ export const Admin = () => {
   }, []);
 
   useEffect(() => { if (user?.globalRole === 'platform_admin') void refresh(); }, [refresh, user?.globalRole]);
-  if (user?.globalRole !== 'platform_admin') return <Navigate to="/" replace />;
+  if (user?.globalRole !== 'platform_admin') return <Navigate to="/hoje" replace />;
 
   const updateStatus = async (officeId: string, status: SubscriptionStatus) => {
     setUpdatingOfficeId(officeId);

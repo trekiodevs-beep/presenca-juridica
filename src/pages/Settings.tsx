@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
-import { GoogleCalendarSettingsError, listGoogleCalendars, selectGoogleCalendar as selectGoogleCalendarConnection, updateOffice as dbUpdateOffice, updatePublicForm, type GoogleCalendarOption } from '../services/supabaseDb';
+import { disconnectGoogleCalendar, GoogleCalendarSettingsError, listGoogleCalendars, selectGoogleCalendar as selectGoogleCalendarConnection, updateOffice as dbUpdateOffice, updatePublicForm, type GoogleCalendarOption } from '../services/supabaseDb';
 import { createSupabaseOffice } from '../services/supabaseAuth';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, Building2, MessageSquare, ShieldAlert, Link as LinkIcon, Copy, ExternalLink, Globe, Clock, Calendar, ArrowRight } from 'lucide-react';
@@ -13,6 +13,7 @@ import { getTrialState, TRIAL_DAYS } from '../lib/trial';
 import { supabase } from '../lib/supabase';
 import { DEFAULT_WHATSAPP_MESSAGE } from '../lib/whatsappMessage';
 import { CityStateFields } from '../components/CityStateFields';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 const DEFAULT_AREAS = ['Direito de Família', 'Direito Trabalhista', 'Direito do Consumidor', 'Direito Empresarial'];
 
@@ -26,6 +27,7 @@ export const Settings = () => {
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [calendarConnection, setCalendarConnection] = useState<{ google_account_email: string | null; calendar_id: string | null; calendar_name: string | null; status: string; last_sync_at: string | null } | null>(null);
   const [googleCalendars, setGoogleCalendars] = useState<GoogleCalendarOption[]>([]);
+  const [confirmingCalendarDisconnect, setConfirmingCalendarDisconnect] = useState(false);
 
   const handleCopyText = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
@@ -108,6 +110,24 @@ export const Settings = () => {
     } catch (error) {
       console.error(error);
       showToast(error instanceof GoogleCalendarSettingsError ? error.message : 'Não foi possível selecionar esta agenda. Tente novamente.', 'error');
+    } finally {
+      setCalendarLoading(false);
+    }
+  };
+
+  const handleDisconnectGoogleCalendar = async () => {
+    setCalendarLoading(true);
+    try {
+      const result = await disconnectGoogleCalendar();
+      setCalendarConnection(null);
+      setGoogleCalendars([]);
+      setConfirmingCalendarDisconnect(false);
+      showToast(result.googleRevoked
+        ? 'Google Agenda desconectada. Os compromissos continuam disponíveis somente no CRM.'
+        : 'Google Agenda desconectada do CRM. Para concluir a revogação também no Google, remova o acesso nas conexões da sua Conta Google.', result.googleRevoked ? 'success' : 'info');
+    } catch (error) {
+      console.error(error);
+      showToast(error instanceof GoogleCalendarSettingsError ? error.message : 'Não foi possível desconectar o Google Agenda. Tente novamente.', 'error');
     } finally {
       setCalendarLoading(false);
     }
@@ -303,11 +323,13 @@ export const Settings = () => {
             <div className="flex flex-wrap gap-2">
               {calendarConnection?.status === 'active' && <Button type="button" variant="outline" disabled={calendarLoading} onClick={loadGoogleCalendars}>{calendarLoading ? 'Carregando...' : 'Listar agendas'}</Button>}
               <Button type="button" variant="outline" disabled={calendarLoading} onClick={connectGoogleCalendar}>{calendarLoading ? 'Conectando...' : calendarConnection?.status === 'active' ? 'Reconectar Google Agenda' : 'Conectar Google Agenda'}</Button>
+              {calendarConnection && <Button type="button" variant="danger" disabled={calendarLoading} onClick={() => setConfirmingCalendarDisconnect(true)}>{calendarConnection.status === 'active' ? 'Desconectar' : 'Remover conexão Google'}</Button>}
             </div>
           </div>
           {calendarConnection?.status === 'active' && googleCalendars.length > 0 && <div className="mt-4 max-w-xl"><label className="mb-1 block text-sm font-medium text-slate-700">Agenda de destino</label><select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" value={calendarConnection.calendar_id || ''} onChange={event => void selectGoogleCalendar(event.target.value)}><option value="">Selecione uma agenda</option>{googleCalendars.map(calendar => <option key={calendar.id} value={calendar.id}>{calendar.summary}{calendar.primary ? ' (principal)' : ''}</option>)}</select></div>}
         </CardContent>
       </Card>}
+      <ConfirmDialog open={confirmingCalendarDisconnect} title="Desconectar Google Agenda?" description="A sincronização será interrompida e a autorização do Google será revogada. Os compromissos existentes permanecerão no CRM e não serão apagados do Google Agenda." confirmLabel="Desconectar Google Agenda" variant="danger" loading={calendarLoading} onCancel={() => setConfirmingCalendarDisconnect(false)} onConfirm={handleDisconnectGoogleCalendar} />
 
       <form onSubmit={handleSubmit} className="space-y-6">
         
