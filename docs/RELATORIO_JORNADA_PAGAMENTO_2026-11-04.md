@@ -3,7 +3,9 @@
 **Data:** 04/11/2026
 **Sistema:** Presença Jurídica
 **Integrações:** Asaas Sandbox, Supabase e Coolify
-**Estado:** código e funções publicados; contratação ponta a ponta ainda não homologada.
+**Estado:** pagamento trimestral com cartão confirmado no Sandbox; assinatura e escritório ativos após conciliação; atualização na interface confirmada pelo usuário. Nova contratação ainda deve comprovar a automação corrigida.
+
+As seções 2 a 8 registram as etapas anteriores da implementação. O resultado final e os limites da validação estão nas seções 9 e 10.
 
 ## 1. Contexto
 
@@ -88,3 +90,9 @@ O Asaas havia rejeitado o checkout por endereço incompleto no customer enviado.
 O teste gerou pagamento confirmado de R$ 299,70 no Sandbox, mas o evento CHECKOUT_PAID falhou porque a correlação não considerava checkoutSession dos eventos de pagamento e assinatura. Os eventos de pagamento haviam sido recebidos sem atualização local. A correção usa checkoutSession e recupera o pagamento pelos eventos persistidos; o resumo pode reprocessar CHECKOUT_PAID com falha para o escritório autenticado. Publicados billing-webhook v10 e billing-summary v8.
 
 O incidente atual foi conciliado em uma transação SQL usando PAYMENT_CONFIRMED e CHECKOUT_PAID persistidos, validando valor e vínculos. Assinatura e escritório ficaram ACTIVE e o pagamento CONFIRMED foi registrado. Isso recupera este teste; a correção automática ainda deve ser confirmada em uma próxima contratação.
+
+## 10. Confirmação final do usuário
+
+Em 04/11/2026, após a conciliação, o usuário confirmou que o plano contratado apareceu corretamente na interface do CRM. Estado verificado no banco: produto core, preço core_quarterly, assinatura e escritório ACTIVE, pagamento CONFIRMED de R$ 299,70 e término do período em 05/02/2027 (UTC).
+
+O pagamento ocorreu no Asaas Sandbox com o CRM publicado. A confirmação encerra o incidente de acesso deste pagamento. Ela não substitui uma nova prova de ativação automática após a correção de checkoutSession, nem os testes completos de Pix, boleto, expiração, cancelamento e renovação. Funções finais publicadas: billing-create-checkout v10, billing-webhook v10 e billing-summary v8. Código de correção publicado na main: 898cb5b.

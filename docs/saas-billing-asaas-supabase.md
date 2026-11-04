@@ -2,20 +2,22 @@
 
 Este documento define o padrão reutilizável de integração Asaas + Supabase e registra sua implementação concreta no CRM Presença Jurídica. As seções de arquitetura, segurança, idempotência, implantação e homologação podem ser adaptadas a outros SaaS; catálogo, preços, textos, limites e regras comerciais pertencem a este produto.
 
-O código corrigido do Presença Jurídica está versionado na `main` pelo commit `e54aa1d`, mas essa revisão continua **NÃO HOMOLOGADA** até comprovar a migration remota `20260916000300`, o redeploy das Edge Functions e o E2E no Sandbox.
+Atualizado em **04/11/2026**. Jornada publicada no CRM; pagamento trimestral com cartão confirmado no Asaas Sandbox e plano ativo confirmado pelo usuário na interface. O teste exigiu conciliação do incidente; a correção automática publicada em `898cb5b` ainda precisa ser comprovada em nova contratação sem intervenção.
 
 ## Estado comprovado
 
 | Camada | Estado | Evidência/pendência |
 | --- | --- | --- |
-| Código e testes | IMPLEMENTADO | `e54aa1d`; testes contratuais, TypeScript e build aprovados localmente |
-| GitHub | PUBLICADO | `origin/main` confirmado em `e54aa1d0801cfdb70296f0b143d0996c15cc062d` |
-| Migration de integridade | NÃO COMPROVADA REMOTAMENTE | aplicar `20260916000300_billing_checkout_integrity.sql` |
-| Edge Functions corrigidas | REDEPLOY NÃO COMPROVADO | publicar as cinco Functions alteradas e conferir versão remota |
-| Configuração do webhook | NÃO REVALIDADA | conferir URL, token, eventos e modo de envio no painel Asaas Sandbox |
-| Pagamento ponta a ponta | NÃO COMPROVADO | executar Checkout, pagamento, webhook, ativação e reconciliação no Sandbox |
+| Código e GitHub | PUBLICADO | `main` em `898cb5b` para a correção de checkoutSession; TypeScript e 49 testes aprovados |
+| Frontend / Coolify | PUBLICADO | Escolha do plano antes da etapa de pagamento; tela nova confirmada no domínio do CRM |
+| Banco | APLICADO | Migrações de integridade e `20261104194945_billing_hosted_checkout_customer.sql` presentes remotamente |
+| Edge Functions | ACTIVE | `billing-create-checkout` v10, `billing-webhook` v10 e `billing-summary` v8 |
+| Webhook | ENTREGA COMPROVADA | Eventos CHECKOUT e PAYMENT recebidos e persistidos |
+| Cartão trimestral | PAGAMENTO E ACESSO CONFIRMADOS | R$ 299,70 CONFIRMED; assinatura/escritório ACTIVE após conciliação; usuário confirmou a interface |
+| Automação corrigida | VALIDAÇÃO PENDENTE | Repetir contratação para comprovar ativação sem conciliação manual |
+| Pix e boleto | E2E PENDENTE | Criação, confirmação e ativação ainda precisam de testes completos |
 
-`GitHub atualizado` não significa `migration aplicada`, `Function publicada` nem `pagamento homologado`.
+Detalhes e histórico: [relatório de 04/11/2026](RELATORIO_JORNADA_PAGAMENTO_2026-11-04.md). O teste utiliza o CRM publicado com Asaas Sandbox; não comprova operação financeira no Asaas Produção.
 
 ## Decisão comercial
 
@@ -34,8 +36,8 @@ Os códigos de preço são estáveis e não devem ser substituídos por valores 
 1. O frontend chama somente Edge Functions autenticadas.
 2. A Function resolve o escritório pela associação ativa em `memberships`.
 3. A Function consulta `billing_prices`; preço, ciclo e descrição nunca são aceitos como autoridade do navegador.
-4. Cliente, assinatura `PENDING` e sessão de Checkout são persistidos localmente antes da criação do recurso remoto.
-5. A Function cria o Checkout recorrente para Pix/cartão ou uma assinatura direta para boleto.
+4. Assinatura `PENDING` e sessão são persistidas antes do recurso remoto. No cartão, o cliente local é vinculado após a coleta de dados pelo Checkout; Pix/boleto vinculam o cliente antes da criação da assinatura.
+5. Cartão usa Checkout recorrente hospedado; Pix e boleto usam assinatura direta e consulta da primeira cobrança.
 6. O navegador recebe somente a URL hospedada pelo Asaas e identificadores operacionais; nunca recebe `ASAAS_API_KEY` ou token de webhook.
 7. O Asaas chama `billing-webhook`. O endpoint valida `asaas-access-token`, persiste o evento pelo `id` e só então atualiza Checkout, assinatura, pagamento e cache de acesso.
 8. O acesso do produto é decidido pelo estado local (`offices.subscription_status` e período), não por uma chamada síncrona ao Asaas.
@@ -43,10 +45,10 @@ Os códigos de preço são estáveis e não devem ser substituídos por valores 
 ### Fluxo de criação
 
 1. Validar usuário, associação ativa e papel `owner`/`admin`.
-2. Validar `priceCode`, forma de pagamento e CPF/CNPJ.
-3. Localizar ou criar o cliente Asaas por `externalReference = officeId`.
+2. Validar `priceCode` e forma de pagamento. CPF/CNPJ é solicitado no CRM somente para Pix/boleto.
+3. Para Pix/boleto, localizar ou criar o cliente Asaas por `externalReference = officeId`. No cartão, deixar o Checkout coletar identificação, endereço e dados do cartão.
 4. Persistir `billing_subscriptions(PENDING)` e `billing_checkout_sessions(CREATED)` com `subscription_id`.
-5. Para `CREDIT_CARD` ou `PIX`, enviar `POST /checkouts` com:
+5. Para `CREDIT_CARD`, enviar `POST /checkouts` com:
    - `chargeTypes: ["RECURRENT"]`;
    - `minutesToExpire: 60`;
    - `externalReference` igual ao ID da sessão local;
@@ -54,7 +56,7 @@ Os códigos de preço são estáveis e não devem ser substituídos por valores 
    - valor somente em `items`;
    - ciclo e vencimento em `subscription`.
 6. Persistir `checkout.id`, ler `checkout.link` e devolver a URL ao frontend.
-7. Para `BOLETO`, criar `POST /subscriptions`, persistir imediatamente o ID remoto e consultar `/subscriptions/{id}/payments`. A ausência temporária da URL retorna `202`, sem criar outra assinatura.
+7. Para `PIX` ou `BOLETO`, criar `POST /subscriptions`, persistir imediatamente o ID remoto e consultar `/subscriptions/{id}/payments`. A ausência temporária da URL retorna `202`, sem criar outra assinatura.
 
 Exemplo resumido do payload recorrente:
 
@@ -117,7 +119,7 @@ Todas as tabelas possuem RLS. Leitura do catálogo e da cobrança exige associa�
 - `billing-cancel-subscription`: corpo vazio; retorna `status`, `effectiveAt` e `protocol`.
 - `billing-summary`: não recebe dados financeiros sensíveis e devolve somente a projeção segura local.
 
-Na contratação, o proprietário ou administrador escolhe período, CPF/CNPJ e forma de pagamento antes de criar a tentativa. Cartão usa Checkout recorrente hospedado (`CREDIT_CARD`); Pix e boleto usam assinatura Asaas com a primeira cobrança recuperável. Pix de assinatura requer pagamento manual a cada ciclo e não equivale a Pix Automático. A tela apresenta a tentativa `PENDING`, o link original do provedor e, para Pix, QR Code/copia e cola quando disponíveis. O botão de atualizar consulta o estado local consolidado pelo webhook; callback de navegador não confirma pagamento. Uma tentativa pendente não é substituída automaticamente por outra enquanto o resultado financeiro não estiver conciliado.
+Na contratação, o proprietário ou administrador escolhe primeiro o plano. A segunda etapa mostra o total do período e a escolha do método. Para cartão, identificação, endereço e cartão são coletados no Asaas, sem enviar `customer` incompleto na criação do Checkout. Pix/boleto solicitam CPF/CNPJ nessa segunda etapa. Cartão usa Checkout recorrente hospedado (`CREDIT_CARD`); Pix e boleto usam assinatura Asaas com a primeira cobrança recuperável. Pix de assinatura requer pagamento manual a cada ciclo e não equivale a Pix Automático. A tela apresenta a tentativa `PENDING`, o link original do provedor e, para Pix, QR Code/copia e cola quando disponíveis. O botão de atualizar consulta o estado local e pode reprocessar um `CHECKOUT_PAID` persistido com falha para o escritório autenticado; callback de navegador não confirma pagamento. Uma tentativa pendente não é substituída automaticamente por outra enquanto o resultado financeiro não estiver conciliado.
 
 ## Segredos e configuração
 
@@ -152,6 +154,10 @@ Configuração mínima recomendada:
 - pagamentos: eventos de criação, confirmação/recebimento, atraso, estorno e chargeback usados pelo produto.
 
 O webhook exige `id` e `event`, aceita atributos adicionais e usa `(provider, provider_event_id)` como chave única. Eventos `PROCESSED`/`IGNORED` retornam `200` como duplicados. Eventos `FAILED` são reabertos, incrementam `attempt_count` e retornam `500` enquanto o processamento falhar, permitindo o retry do Asaas. O Asaas considera apenas HTTP `200` como entrega bem-sucedida e aplica penalidade progressiva à fila após falhas; por isso `FAILED` deve gerar alerta operacional e correção rápida.
+
+### Correlação de eventos
+
+Eventos de pagamento e assinatura do Checkout trazem `checkoutSession`; esse campo é associado a `billing_checkout_sessions.provider_checkout_id`. O webhook também recupera pagamentos pelos eventos persistidos quando a consulta ao provedor não resolve a relação. Um evento confirmado sem aplicação financeira local não deve ser considerado prova de ativação.
 
 ### Mapeamento de eventos
 
@@ -225,7 +231,7 @@ Após cada deploy, conferir no projeto Supabase que a Function está `ACTIVE` e 
 
 ## Estado e critérios de aceite
 
-Estado atual: **IMPLEMENTADO NO CÓDIGO E PUBLICADO NO GITHUB / NÃO HOMOLOGADO NO RUNTIME**. Os itens abaixo são critérios pendentes de comprovação no Sandbox, não evidência de que já foram atendidos em produção.
+Estado atual: **PAGAMENTO TRIMESTRAL COM CARTÃO E ACESSO CONFIRMADOS NO SANDBOX APÓS CONCILIAÇÃO**. A ativação automática corrigida, Pix, boleto e os cenários abaixo ainda exigem validação própria.
 
 - Nenhuma chave Asaas aparece no bundle, no cliente ou nos logs.
 - Usuário sem associação ativa recebe erro de negócio, nunca dados de outro escritório.
@@ -237,10 +243,9 @@ Estado atual: **IMPLEMENTADO NO CÓDIGO E PUBLICADO NO GITHUB / NÃO HOMOLOGADO 
 
 ## Pendências obrigatórias de homologação
 
-- Aplicar a migration `20260916000300_billing_checkout_integrity.sql` no projeto vinculado.
-- Publicar novamente todas as Functions de cobrança alteradas.
-- Criar Checkout real no Sandbox e confirmar `id`, `link` e redirecionamentos de sucesso, cancelamento e expiração.
-- Confirmar a sequência `CHECKOUT_PAID` → correlação local → assinatura Asaas → cobrança e período real.
+- Repetir contratação de cartão e comprovar ativação automática usando `checkoutSession`, sem conciliação manual.
+- Validar cancelamento e expiração do Checkout.
+- Testar Pix e boleto do início até a ativação.
 - Forçar uma falha de processamento, comprovar `FAILED`, repetir o mesmo `id` e comprovar `PROCESSED` com `attempt_count > 1`.
 - Testar boleto com URL inicialmente indisponível e comprovar que não surge uma segunda assinatura remota.
 - Validar cancelamento com cobrança pendente/vencida e obter aceite formal da regra comercial.
