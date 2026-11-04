@@ -191,6 +191,7 @@ test('Billing creation keeps the payer-selected method and a recoverable provide
   assert.match(create, /provider_snapshot: \{ id: providerId, link: checkoutUrl \}/);
   assert.match(summary, /pixQrCode/);
   assert.match(source('billing-webhook/index.ts'), /providerRecord\?\.externalReference/);
+  assert.match(source('billing-webhook/index.ts'), /payments\?checkoutSession=/);
 });
 
 test('Asaas webhook handles Checkout events and re-enters failed deliveries', () => {

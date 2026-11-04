@@ -54,9 +54,15 @@ Deno.serve(async request => {
       if (checkoutStatus === 'PAID') checkoutPatch.completed_at = new Date().toISOString();
       await requireDb(admin.from('billing_checkout_sessions').update(checkoutPatch).eq('id', localCheckout.id), 'checkout_status_update_failed');
       if (eventType === 'CHECKOUT_PAID' && localCheckout.subscription_id) {
-        const providerSubscriptions = await asaasRequest(`subscriptions?externalReference=${encodeURIComponent(localCheckout.id)}&limit=2`).catch(() => null);
+        const checkoutPayments = await asaasRequest(`payments?checkoutSession=${encodeURIComponent(safeText(checkout.id, 120))}&limit=2`).catch(() => null);
+        const matchedPayments = checkoutPayments && Array.isArray(checkoutPayments.data) ? checkoutPayments.data : [];
+        const linkedSubscriptionId = matchedPayments.length === 1 ? safeText(matchedPayments[0]?.subscription, 120) : '';
+        const providerSubscriptions = linkedSubscriptionId
+          ? await asaasRequest(`subscriptions/${encodeURIComponent(linkedSubscriptionId)}`).catch(() => null)
+          : await asaasRequest(`subscriptions?externalReference=${encodeURIComponent(localCheckout.id)}&limit=2`).catch(() => null);
         const matchedProviderSubscriptions = providerSubscriptions && Array.isArray(providerSubscriptions.data) ? providerSubscriptions.data : [];
-        const providerSubscription = matchedProviderSubscriptions.length === 1 ? matchedProviderSubscriptions[0] : null;
+        const providerSubscription = linkedSubscriptionId ? providerSubscriptions : matchedProviderSubscriptions.length === 1 ? matchedProviderSubscriptions[0] : null;
+        if (!providerSubscription?.id) throw new Error('checkout_subscription_correlation_failed');
         const start = checkout.subscription?.nextDueDate ? new Date(checkout.subscription.nextDueDate) : new Date();
         const { data: price } = await admin.from('billing_prices').select('product_code, interval_unit').eq('code', localCheckout.price_code).single();
         const end = addPeriod(start, String(price?.interval_unit || 'MONTHLY'));
