@@ -6,6 +6,20 @@ Deno.serve(async request => {
   if (request.method !== 'GET') return json(request, { error: 'Método não permitido.' }, 405);
   const context = await getBillingContext(request); const contextError = await normalizeBillingError(request, context); if (contextError) return new Response(contextError.body, { status: contextError.status, headers: { ...getCorsHeaders(request), 'content-type': 'application/json', 'cache-control': 'no-store' } });
   const { admin, officeId } = context;
+  // Recover a durable failed Checkout event when its owner refreshes billing.
+  const { data: pendingSubscription } = await admin.from('billing_subscriptions').select('id').eq('office_id', officeId).eq('status', 'PENDING').maybeSingle();
+  if (pendingSubscription) {
+    const { data: session } = await admin.from('billing_checkout_sessions').select('provider_checkout_id').eq('subscription_id', pendingSubscription.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (session?.provider_checkout_id) {
+      const { data: failedEvent } = await admin.from('billing_webhook_events').select('payload').eq('resource_id', session.provider_checkout_id).eq('event_type', 'CHECKOUT_PAID').eq('processing_status', 'FAILED').limit(1).maybeSingle();
+      const token = Deno.env.get('ASAAS_WEBHOOK_TOKEN');
+      if (failedEvent?.payload && token) {
+        await fetch(Deno.env.get('SUPABASE_URL') + '/functions/v1/billing-webhook', {
+          method: 'POST', headers: { 'content-type': 'application/json', 'asaas-access-token': token }, body: JSON.stringify(failedEvent.payload), signal: AbortSignal.timeout(8000),
+        }).catch(error => console.error('billing checkout recovery failed', sanitizedAsaasError(error)));
+      }
+    }
+  }
   const [{ data: office }, { data: subscription }, { data: payments, error: paymentsError }] = await Promise.all([
     admin.from('offices').select('product_code, price_code, subscription_status, billing_current_period_start, billing_current_period_end, billing_cancel_at_period_end').eq('id', officeId).maybeSingle(),
     admin.from('billing_subscriptions').select('id, price_code, status, billing_type, provider_subscription_id, provider_snapshot, current_period_start, current_period_end, cancel_at_period_end, next_due_date').eq('office_id', officeId).order('created_at', { ascending: false }).limit(1).maybeSingle(),

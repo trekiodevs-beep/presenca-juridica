@@ -55,7 +55,15 @@ Deno.serve(async request => {
       await requireDb(admin.from('billing_checkout_sessions').update(checkoutPatch).eq('id', localCheckout.id), 'checkout_status_update_failed');
       if (eventType === 'CHECKOUT_PAID' && localCheckout.subscription_id) {
         const checkoutPayments = await asaasRequest(`payments?checkoutSession=${encodeURIComponent(safeText(checkout.id, 120))}&limit=2`).catch(() => null);
-        const matchedPayments = checkoutPayments && Array.isArray(checkoutPayments.data) ? checkoutPayments.data : [];
+        let matchedPayments = checkoutPayments && Array.isArray(checkoutPayments.data) ? checkoutPayments.data : [];
+        if (matchedPayments.length !== 1) {
+          const { data: paymentEvents, error: paymentEventsError } = await admin.from('billing_webhook_events').select('payload')
+            .in('event_type', ['PAYMENT_CREATED', 'PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED'])
+            .filter('payload->payment->>checkoutSession', 'eq', safeText(checkout.id, 120))
+            .order('received_at', { ascending: false }).limit(1);
+          if (paymentEventsError) throw new Error('checkout_payment_lookup_failed');
+          matchedPayments = paymentEvents?.[0]?.payload?.payment ? [paymentEvents[0].payload.payment] : [];
+        }
         const linkedSubscriptionId = matchedPayments.length === 1 ? safeText(matchedPayments[0]?.subscription, 120) : '';
         const providerSubscriptions = linkedSubscriptionId
           ? await asaasRequest(`subscriptions/${encodeURIComponent(linkedSubscriptionId)}`).catch(() => null)
@@ -75,6 +83,18 @@ Deno.serve(async request => {
           billing_phone: safeText(providerCustomer.mobilePhone || providerCustomer.phone, 40), updated_at: new Date().toISOString(),
         }, { onConflict: 'office_id' }).select('id').single(), 'checkout_customer_link_failed');
         if (!customerResult.data?.id) throw new Error('checkout_customer_link_missing');
+        const recoveredPayment = matchedPayments.length === 1 ? matchedPayments[0] : null;
+        if (recoveredPayment?.id) {
+          await requireDb(admin.from('billing_payments').upsert({
+            office_id: localCheckout.office_id, subscription_id: localCheckout.subscription_id,
+            provider_payment_id: recoveredPayment.id, provider_subscription_id: providerSubscription.id,
+            status: recoveredPayment.status, billing_type: recoveredPayment.billingType || 'CREDIT_CARD',
+            amount_cents: Math.round(Number(recoveredPayment.value || 0) * 100), due_date: recoveredPayment.dueDate || null,
+            paid_at: recoveredPayment.paymentDate || recoveredPayment.clientPaymentDate || null,
+            confirmed_at: ['CONFIRMED', 'RECEIVED'].includes(recoveredPayment.status) ? new Date().toISOString() : null,
+            invoice_url: recoveredPayment.invoiceUrl || null, provider_snapshot: recoveredPayment, updated_at: new Date().toISOString(),
+          }, { onConflict: 'provider_payment_id' }), 'checkout_payment_recovery_failed');
+        }
         const start = checkout.subscription?.nextDueDate ? new Date(checkout.subscription.nextDueDate) : new Date();
         const { data: price } = await admin.from('billing_prices').select('product_code, interval_unit').eq('code', localCheckout.price_code).single();
         const end = addPeriod(start, String(price?.interval_unit || 'MONTHLY'));
@@ -90,6 +110,16 @@ Deno.serve(async request => {
     if (providerSubscriptionId) {
       const result = await admin.from('billing_subscriptions').select('id, office_id, customer_id, price_code, current_period_start, current_period_end').eq('provider_subscription_id', providerSubscriptionId).maybeSingle();
       localSubscription = result.data;
+    }
+    const checkoutSessionId = safeText(payment?.checkoutSession || subscription?.checkoutSession, 120);
+    if (!localSubscription && checkoutSessionId) {
+      const { data: session, error: sessionError } = await admin.from('billing_checkout_sessions').select('subscription_id').eq('provider_checkout_id', checkoutSessionId).maybeSingle();
+      if (sessionError) throw new Error('checkout_session_lookup_failed');
+      if (session?.subscription_id) {
+        const result = await requireDb(admin.from('billing_subscriptions').select('id, office_id, customer_id, price_code, current_period_start, current_period_end').eq('id', session.subscription_id).single(), 'checkout_subscription_lookup_failed');
+        localSubscription = result.data;
+        if (providerSubscriptionId) await requireDb(admin.from('billing_subscriptions').update({ provider_subscription_id: providerSubscriptionId }).eq('id', session.subscription_id), 'checkout_subscription_link_failed');
+      }
     }
     const externalReference = safeText(payment?.externalReference || subscription?.externalReference || '', 120);
     if (!localSubscription && externalReference) {

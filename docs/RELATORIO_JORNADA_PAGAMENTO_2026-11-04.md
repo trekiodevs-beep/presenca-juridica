@@ -82,3 +82,9 @@ O registro de `billing_customers` apresentado pelo usuário permite reutilizar o
 A interface foi reorganizada para plano primeiro e etapa de pagamento depois, com resumo do total e opções em cartões. O CPF deixou de ser solicitado no CRM para cartão: o checkout hospedado coleta identificação, endereço e cartão. Pix e boleto solicitam o documento somente após a escolha do plano e método.
 
 O Asaas havia rejeitado o checkout por endereço incompleto no customer enviado. O checkout de cartão agora é criado sem customer; no evento de pagamento, o backend busca o cliente efetivo do Asaas, salva o vínculo local e só então ativa a assinatura. A migração billing_hosted_checkout_customer permite customer_id ausente apenas em cartão PENDING ou CANCELED. Funções publicadas: billing-create-checkout v10 e billing-webhook v9. A confirmação financeira ponta a ponta continua pendente.
+
+## 9. Confirmação e conciliação do pagamento trimestral
+
+O teste gerou pagamento confirmado de R$ 299,70 no Sandbox, mas o evento CHECKOUT_PAID falhou porque a correlação não considerava checkoutSession dos eventos de pagamento e assinatura. Os eventos de pagamento haviam sido recebidos sem atualização local. A correção usa checkoutSession e recupera o pagamento pelos eventos persistidos; o resumo pode reprocessar CHECKOUT_PAID com falha para o escritório autenticado. Publicados billing-webhook v10 e billing-summary v8.
+
+O incidente atual foi conciliado em uma transação SQL usando PAYMENT_CONFIRMED e CHECKOUT_PAID persistidos, validando valor e vínculos. Assinatura e escritório ficaram ACTIVE e o pagamento CONFIRMED foi registrado. Isso recupera este teste; a correção automática ainda deve ser confirmada em uma próxima contratação.
