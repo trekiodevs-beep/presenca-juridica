@@ -62,14 +62,13 @@ export const Billing = () => {
       if (!office?.billingSubscriptionId && ![11, 14].includes(cpfCnpj.replace(/\D/g, '').length)) { showToast('Informe um CPF ou CNPJ válido para o pagador.', 'error'); return; }
       const response = office?.billingSubscriptionId && office.subscriptionStatus !== 'CANCELED' ? await changePlan(priceCode) : await createCheckout(priceCode, cpfCnpj);
       if ('checkoutUrl' in response && response.checkoutUrl) {
-        window.open(response.checkoutUrl, '_blank', 'noopener,noreferrer');
-        showToast('Checkout seguro aberto em uma nova aba.', 'success');
+        window.location.assign(response.checkoutUrl);
       } else {
         showToast('Plano atualizado. A próxima cobrança seguirá o novo período.', 'success');
       }
     } catch (error) {
       console.error(error);
-      showToast('Não foi possível iniciar o pagamento. Confira os dados e tente novamente.', 'error');
+      showToast(error instanceof Error ? error.message : 'Não foi possível iniciar o pagamento. Tente novamente.', 'error');
     } finally {
       setLoadingPlan(null);
     }

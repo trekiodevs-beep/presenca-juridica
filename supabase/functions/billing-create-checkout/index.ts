@@ -21,15 +21,28 @@ Deno.serve(async request => {
     if (!['core_monthly', 'core_quarterly', 'core_semiannual', 'core_annual'].includes(priceCode)) return json(request, { error: 'Plano de cobrança inválido.', code: 'invalid_price' }, 400);
     if (!['CREDIT_CARD', 'PIX', 'BOLETO'].includes(billingType) || !validDocument(document)) return json(request, { error: 'Informe um CPF ou CNPJ válido e uma forma de pagamento.', code: 'invalid_payer' }, 400);
 
-    const [{ data: price, error: priceError }, { data: office, error: officeError }, { data: liveSubscription }] = await Promise.all([
+    const [{ data: price, error: priceError }, { data: office, error: officeError }, { data: liveSubscription, error: subscriptionLookupError }] = await Promise.all([
       admin.from('billing_prices').select('code, name, amount_cents, interval_unit').eq('code', priceCode).eq('active', true).maybeSingle(),
       admin.from('offices').select('name, email, whatsapp').eq('id', officeId).maybeSingle(),
-      admin.from('billing_subscriptions').select('id').eq('office_id', officeId).in('status', ['PENDING', 'ACTIVE', 'PAST_DUE', 'GRACE_PERIOD', 'CANCEL_AT_PERIOD_END']).limit(1).maybeSingle(),
+      admin.from('billing_subscriptions').select('id, price_code, status').eq('office_id', officeId).in('status', ['PENDING', 'ACTIVE', 'PAST_DUE', 'GRACE_PERIOD', 'CANCEL_AT_PERIOD_END']).limit(1).maybeSingle(),
     ]);
     if (priceError) return json(request, { error: 'Não foi possível carregar o plano.', code: 'price_query_failed' }, 500);
     if (!price) return json(request, { error: 'Plano indisponível.', code: 'price_unavailable' }, 409);
     if (officeError || !office) return json(request, { error: 'Escritório não encontrado.', code: 'office_not_found' }, 404);
-    if (liveSubscription) return json(request, { error: 'Já existe uma assinatura ou checkout em andamento.', code: 'subscription_already_exists' }, 409);
+    if (subscriptionLookupError) return json(request, { error: 'Não foi possível consultar a assinatura.', code: 'subscription_query_failed' }, 500);
+    if (liveSubscription) {
+      if (liveSubscription.status === 'PENDING') {
+        const { data: pendingCheckout, error: checkoutLookupError } = await admin.from('billing_checkout_sessions')
+          .select('provider_checkout_id, status, expires_at').eq('subscription_id', liveSubscription.id)
+          .order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (checkoutLookupError) return json(request, { error: 'Não foi possível consultar o checkout.', code: 'checkout_query_failed' }, 500);
+        if (pendingCheckout?.status === 'OPEN' && pendingCheckout.provider_checkout_id && pendingCheckout.expires_at && new Date(pendingCheckout.expires_at).getTime() > Date.now()) {
+          if (liveSubscription.price_code !== priceCode) return json(request, { error: 'Já existe um checkout em andamento para outro período. Conclua-o antes de escolher outro plano.', code: 'checkout_for_other_price', priceCode: liveSubscription.price_code }, 409);
+          return json(request, { checkoutUrl: `https://asaas.com/checkoutSession/show?id=${encodeURIComponent(pendingCheckout.provider_checkout_id)}`, checkoutId: pendingCheckout.provider_checkout_id, status: 'PENDING' }, 200);
+        }
+      }
+      return json(request, { error: 'Já existe uma assinatura ou checkout em andamento. Aguarde a atualização ou contate o suporte.', code: 'subscription_already_exists' }, 409);
+    }
 
     let customerId = '';
     const { data: currentCustomer } = await admin.from('billing_customers').select('provider_customer_id').eq('office_id', officeId).maybeSingle();

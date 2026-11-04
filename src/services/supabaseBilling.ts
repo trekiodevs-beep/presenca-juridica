@@ -9,8 +9,11 @@ export interface BillingSummary { productCode: string; priceCode: string | null;
 const billingError = async (error: unknown, fallback: string) => {
   if (error instanceof FunctionsHttpError) {
     const status = error.context.status;
+    const payload = await error.context.clone().json().catch(() => null);
     if (status === 401) return new Error('Sua sessão expirou. Entre novamente para continuar.');
     if (status === 403) return new Error('Sua conta não possui permissão para gerenciar a assinatura.');
+    if (status === 409 && payload?.code === 'checkout_for_other_price') return new Error(payload.error);
+    if (status === 409 && payload?.code === 'subscription_already_exists') return new Error(payload.error);
     if (status === 409) return new Error('Este plano está temporariamente indisponível. Tente novamente.');
     if (status === 502) return new Error('O serviço de pagamento está temporariamente indisponível. Tente novamente em instantes.');
   }
