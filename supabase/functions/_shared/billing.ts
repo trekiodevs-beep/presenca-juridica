@@ -57,6 +57,14 @@ export const sanitizedAsaasError = (error: unknown) => {
   };
 };
 
+export const safeAsaasUrl = (value: unknown): string => {
+  if (typeof value !== 'string') return '';
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && !url.username && !url.password && (url.hostname === 'asaas.com' || url.hostname.endsWith('.asaas.com')) ? url.href : '';
+  } catch { return ''; }
+};
+
 export const json = (request: Request, body: unknown, status = 200) => Response.json(body, { status, headers: { ...getCorsHeaders(request), 'cache-control': 'no-store' } });
 
 export const normalizeBillingError = async (request: Request, result: BillingContext | Response) => {

@@ -1,10 +1,11 @@
 import { handleCors } from '../_shared/cors.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { asaasRequest, getBillingContext, json, normalizeBillingError, sanitizedAsaasError } from '../_shared/billing.ts';
+import { asaasRequest, getBillingContext, json, normalizeBillingError, safeAsaasUrl, sanitizedAsaasError } from '../_shared/billing.ts';
 
 const cycleFor = (unit: string) => ({ MONTHLY: 'MONTHLY', QUARTERLY: 'QUARTERLY', SEMIANNUALLY: 'SEMIANNUALLY', YEARLY: 'YEARLY' }[unit] || 'MONTHLY');
 const cpfCnpj = (value: unknown) => String(value || '').replace(/\D/g, '');
 const validDocument = (value: string) => value.length === 11 || value.length === 14;
+const paymentUrl = (payment: Record<string, unknown> | null) => safeAsaasUrl(payment?.invoiceUrl || payment?.bankSlipUrl);
 
 Deno.serve(async request => {
   const cors = handleCors(request); if (cors) return cors;
@@ -36,9 +37,22 @@ Deno.serve(async request => {
           .select('provider_checkout_id, status, expires_at').eq('subscription_id', liveSubscription.id)
           .order('created_at', { ascending: false }).limit(1).maybeSingle();
         if (checkoutLookupError) return json(request, { error: 'Não foi possível consultar o checkout.', code: 'checkout_query_failed' }, 500);
-        if (pendingCheckout?.status === 'OPEN' && pendingCheckout.provider_checkout_id && pendingCheckout.expires_at && new Date(pendingCheckout.expires_at).getTime() > Date.now()) {
+        if (pendingCheckout?.status === 'OPEN' && pendingCheckout.provider_checkout_id) {
           if (liveSubscription.price_code !== priceCode) return json(request, { error: 'Já existe um checkout em andamento para outro período. Conclua-o antes de escolher outro plano.', code: 'checkout_for_other_price', priceCode: liveSubscription.price_code }, 409);
-          return json(request, { checkoutUrl: `https://asaas.com/checkoutSession/show?id=${encodeURIComponent(pendingCheckout.provider_checkout_id)}`, checkoutId: pendingCheckout.provider_checkout_id, status: 'PENDING' }, 200);
+          const { data: pendingSubscription, error: pendingError } = await admin.from('billing_subscriptions').select('billing_type, provider_subscription_id, provider_snapshot').eq('id', liveSubscription.id).single();
+          if (pendingError || !pendingSubscription) return json(request, { error: 'Não foi possível consultar a assinatura.', code: 'subscription_query_failed' }, 500);
+          if (pendingSubscription.billing_type !== billingType) return json(request, { error: 'Já existe um pagamento em andamento com outra forma de pagamento.', code: 'checkout_for_other_method' }, 409);
+          if (pendingSubscription.billing_type === 'CREDIT_CARD') {
+            if (!pendingCheckout.expires_at || new Date(pendingCheckout.expires_at).getTime() <= Date.now()) return json(request, { error: 'O checkout anterior venceu e aguarda conciliação. Contate o suporte se ainda não puder escolher outro plano.', code: 'checkout_reconciliation_required' }, 409);
+            const checkoutUrl = safeAsaasUrl(pendingSubscription.provider_snapshot?.link);
+            if (checkoutUrl) return json(request, { checkoutUrl, checkoutId: pendingCheckout.provider_checkout_id, status: 'PENDING' }, 200);
+          } else if (pendingSubscription.provider_subscription_id) {
+            const payments = await asaasRequest(`subscriptions/${encodeURIComponent(String(pendingSubscription.provider_subscription_id))}/payments`);
+            const firstPayment = Array.isArray(payments.data) ? payments.data[0] as Record<string, unknown> : null;
+            const checkoutUrl = paymentUrl(firstPayment);
+            if (checkoutUrl) return json(request, { checkoutUrl, checkoutId: pendingCheckout.provider_checkout_id, status: 'PENDING' }, 200);
+            return json(request, { status: 'PENDING', code: 'payment_link_pending' }, 202);
+          }
         }
       }
       return json(request, { error: 'Já existe uma assinatura ou checkout em andamento. Aguarde a atualização ou contate o suporte.', code: 'subscription_already_exists' }, 409);
@@ -63,6 +77,7 @@ Deno.serve(async request => {
     sessionId = crypto.randomUUID();
     const nextDueDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const { data: localSubscription, error: subscriptionError } = await admin.from('billing_subscriptions').insert({ office_id: officeId, customer_id: localCustomer.id, provider: 'asaas', price_code: priceCode, status: 'PENDING', billing_type: billingType, next_due_date: nextDueDate.toISOString().slice(0, 10) }).select('id').single();
+    if (subscriptionError?.code === '23505') return json(request, { error: 'Já existe um pagamento em andamento. Atualize a página para continuar.', code: 'subscription_already_exists' }, 409);
     if (subscriptionError || !localSubscription) return json(request, { error: 'Não foi possível registrar a assinatura.', code: 'subscription_save_failed' }, 500);
     subscriptionId = String(localSubscription.id);
     const { error: sessionError } = await admin.from('billing_checkout_sessions').insert({ id: sessionId, office_id: officeId, subscription_id: subscriptionId, price_code: priceCode, status: 'CREATED', billing_type: billingType, expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(), created_by: userId });
@@ -72,7 +87,7 @@ Deno.serve(async request => {
     }
 
     let providerId = ''; let checkoutUrl = '';
-    if (billingType === 'BOLETO') {
+    if (billingType === 'BOLETO' || billingType === 'PIX') {
       const subscription = await asaasRequest('subscriptions', { method: 'POST', body: JSON.stringify({ customer: customerId, billingType, value: Number(price.amount_cents) / 100, nextDueDate: nextDueDate.toISOString().slice(0, 10), cycle: cycleFor(String(price.interval_unit)), description: `Presença Jurídica — ${price.name}`, externalReference: sessionId }) });
       providerId = String(subscription.id || '');
       if (!providerId) throw new Error('asaas_subscription_id_missing');
@@ -80,17 +95,21 @@ Deno.serve(async request => {
       if (providerLinkError) throw new Error(`provider_subscription_link_failed:${providerLinkError.code}`);
       const payments = await asaasRequest(`subscriptions/${encodeURIComponent(providerId)}/payments`);
       const firstPayment = Array.isArray(payments.data) ? payments.data[0] : null;
-      checkoutUrl = String(firstPayment?.invoiceUrl || firstPayment?.bankSlipUrl || '');
+      checkoutUrl = paymentUrl(firstPayment);
     } else {
       const appUrl = Deno.env.get('APP_URL') || 'https://crm.trekio-tecnologia.com.br';
-      const checkout = await asaasRequest('checkouts', { method: 'POST', body: JSON.stringify({ billingTypes: [billingType], chargeTypes: ['RECURRENT'], minutesToExpire: 60, externalReference: sessionId, items: [{ name: `Presença Jurídica — ${price.name}`, description: 'Assinatura do CRM jurídico', quantity: 1, value: Number(price.amount_cents) / 100 }], subscription: { cycle: cycleFor(String(price.interval_unit)), nextDueDate: nextDueDate.toISOString().slice(0, 10) }, callback: { successUrl: `${appUrl}/billing?checkout=success`, cancelUrl: `${appUrl}/billing?checkout=canceled`, expiredUrl: `${appUrl}/billing?checkout=expired` } }) });
-      providerId = String(checkout.id || ''); checkoutUrl = String(checkout.link || '');
+      const checkout = await asaasRequest('checkouts', { method: 'POST', body: JSON.stringify({ customer: customerId, billingTypes: ['CREDIT_CARD'], chargeTypes: ['RECURRENT'], minutesToExpire: 60, externalReference: sessionId, items: [{ name: `Presença Jurídica — ${price.name}`, description: 'Assinatura do CRM jurídico', quantity: 1, value: Number(price.amount_cents) / 100 }], subscription: { cycle: cycleFor(String(price.interval_unit)), nextDueDate: nextDueDate.toISOString().slice(0, 10) }, callback: { successUrl: `${appUrl}/billing?checkout=success`, cancelUrl: `${appUrl}/billing?checkout=canceled`, expiredUrl: `${appUrl}/billing?checkout=expired` } }) });
+      providerId = String(checkout.id || ''); checkoutUrl = safeAsaasUrl(checkout.link);
       if (!providerId || !checkoutUrl) throw new Error('asaas_checkout_response_incomplete');
     }
 
     const { error: sessionLinkError } = await admin.from('billing_checkout_sessions').update({ provider_checkout_id: providerId, status: 'OPEN' }).eq('id', sessionId);
     if (sessionLinkError) throw new Error(`provider_checkout_link_failed:${sessionLinkError.code}`);
-    if (!checkoutUrl && billingType === 'BOLETO') return json(request, { error: 'A cobrança foi criada e está sendo preparada. Consulte Plano e cobrança em instantes.', code: 'payment_link_pending', checkoutId: providerId }, 202);
+    if (billingType === 'CREDIT_CARD') {
+      const { error: snapshotError } = await admin.from('billing_subscriptions').update({ provider_snapshot: { id: providerId, link: checkoutUrl }, updated_at: new Date().toISOString() }).eq('id', subscriptionId).eq('status', 'PENDING');
+      if (snapshotError) console.error('checkout link persistence failed', { officeId, sessionId, code: snapshotError.code });
+    }
+    if (!checkoutUrl && billingType !== 'CREDIT_CARD') return json(request, { status: 'PENDING', code: 'payment_link_pending', checkoutId: providerId }, 202);
     return json(request, { checkoutUrl, checkoutId: providerId, status: 'PENDING' }, 201);
   } catch (error) {
     console.error('billing-create-checkout failed', { officeId, sessionId, ...sanitizedAsaasError(error) });

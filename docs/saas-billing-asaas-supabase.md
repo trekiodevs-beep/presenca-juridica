@@ -117,6 +117,8 @@ Todas as tabelas possuem RLS. Leitura do catálogo e da cobrança exige associa�
 - `billing-cancel-subscription`: corpo vazio; retorna `status`, `effectiveAt` e `protocol`.
 - `billing-summary`: não recebe dados financeiros sensíveis e devolve somente a projeção segura local.
 
+Na contratação, o proprietário ou administrador escolhe período, CPF/CNPJ e forma de pagamento antes de criar a tentativa. Cartão usa Checkout recorrente hospedado (`CREDIT_CARD`); Pix e boleto usam assinatura Asaas com a primeira cobrança recuperável. Pix de assinatura requer pagamento manual a cada ciclo e não equivale a Pix Automático. A tela apresenta a tentativa `PENDING`, o link original do provedor e, para Pix, QR Code/copia e cola quando disponíveis. O botão de atualizar consulta o estado local consolidado pelo webhook; callback de navegador não confirma pagamento. Uma tentativa pendente não é substituída automaticamente por outra enquanto o resultado financeiro não estiver conciliado.
+
 ## Segredos e configuração
 
 Configurar exclusivamente no projeto Supabase (nunca em `VITE_*`, Git ou logs):

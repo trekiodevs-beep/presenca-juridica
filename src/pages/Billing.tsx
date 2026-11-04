@@ -8,16 +8,19 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { CORE_PLAN, getPlan } from '../lib/plans';
 import { getAccessMode, subscriptionLabel } from '../lib/access';
-import { cancelSubscription, changePlan, createCheckout, getBillingSummary, updateBillingMethod, type BillingPayment } from '../services/supabaseBilling';
+import { cancelSubscription, changePlan, createCheckout, getBillingSummary, updateBillingMethod, type BillingPayment, type PendingCheckout } from '../services/supabaseBilling';
+import { getSupabaseOfficeById } from '../services/supabaseAuth';
 import { getUsageCounter } from '../services/supabaseDb';
 import type { UsageCounter } from '../types';
 
 export const Billing = () => {
-  const { office, user } = useAuth();
+  const { office, user, setOffice } = useAuth();
   const { showToast } = useToast();
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [payments, setPayments] = useState<BillingPayment[]>([]);
+  const [pending, setPending] = useState<PendingCheckout | null>(null);
   const [billingType, setBillingType] = useState<'PIX' | 'BOLETO' | 'CREDIT_CARD'>('PIX');
+  const [newBillingType, setNewBillingType] = useState<'PIX' | 'BOLETO' | 'CREDIT_CARD' | ''>('');
   const [loadingBilling, setLoadingBilling] = useState(false);
   const [cpfCnpj, setCpfCnpj] = useState('');
   const [usage, setUsage] = useState<UsageCounter | null>(null);
@@ -35,14 +38,16 @@ export const Billing = () => {
   ] as const;
 
   useEffect(() => {
-    if (!office?.billingSubscriptionId || !canManage) return;
+    if (!office?.id || !canManage) return;
     setLoadingBilling(true);
     setBillingError('');
     getBillingSummary().then(summary => {
       setPayments(summary.payments);
+      setPending(summary.pending);
       if (['PIX', 'BOLETO', 'CREDIT_CARD'].includes(summary.billingType || '')) setBillingType(summary.billingType as 'PIX' | 'BOLETO' | 'CREDIT_CARD');
+      if (summary.status === 'ACTIVE' && office.subscriptionStatus !== 'ACTIVE') getSupabaseOfficeById(office.id).then(setOffice).catch(console.error);
     }).catch(error => { console.error(error); setBillingError('Não foi possível carregar as cobranças. Tente novamente em instantes.'); }).finally(() => setLoadingBilling(false));
-  }, [office?.billingSubscriptionId, canManage]);
+  }, [office?.id, office?.billingSubscriptionId, office?.subscriptionStatus, canManage]);
   useEffect(() => { if (office?.id) getUsageCounter(office.id).then(setUsage).catch(console.error); }, [office?.id]);
 
   const handleBillingMethod = async () => {
@@ -55,16 +60,32 @@ export const Billing = () => {
     finally { setLoadingBilling(false); }
   };
 
+  const handleRefreshBilling = async () => {
+    if (!office?.id) return;
+    try {
+      setLoadingBilling(true);
+      const summary = await getBillingSummary();
+      setPayments(summary.payments);
+      setPending(summary.pending);
+      if (summary.status === 'ACTIVE') setOffice(await getSupabaseOfficeById(office.id));
+    } catch (error) { console.error(error); showToast('Não foi possível atualizar o estado do pagamento.', 'error'); }
+    finally { setLoadingBilling(false); }
+  };
+
   const handlePlan = async (priceCode: string) => {
     if (!canManage) return;
     setLoadingPlan(priceCode);
     try {
       if (!office?.billingSubscriptionId && ![11, 14].includes(cpfCnpj.replace(/\D/g, '').length)) { showToast('Informe um CPF ou CNPJ válido para o pagador.', 'error'); return; }
-      const response = office?.billingSubscriptionId && office.subscriptionStatus !== 'CANCELED' ? await changePlan(priceCode) : await createCheckout(priceCode, cpfCnpj);
+      if (!office?.billingSubscriptionId && !newBillingType) { showToast('Escolha a forma de pagamento para continuar.', 'error'); return; }
+      const response = office?.billingSubscriptionId && office.subscriptionStatus !== 'CANCELED' ? await changePlan(priceCode) : await createCheckout(priceCode, cpfCnpj, newBillingType as 'PIX' | 'BOLETO' | 'CREDIT_CARD');
       if ('checkoutUrl' in response && response.checkoutUrl) {
         window.location.assign(response.checkoutUrl);
       } else {
-        showToast('Plano atualizado. A próxima cobrança seguirá o novo período.', 'success');
+        if ('status' in response && response.status === 'PENDING') {
+          setPending((await getBillingSummary()).pending);
+          showToast('Cobrança criada. O link de pagamento está sendo preparado.', 'success');
+        } else showToast('Plano atualizado. A próxima cobrança seguirá o novo período.', 'success');
       }
     } catch (error) {
       console.error(error);
@@ -108,7 +129,51 @@ export const Billing = () => {
 
       <Card className="border-brand-200 bg-brand-50/40"><CardContent className="p-6"><h2 className="text-lg font-bold text-slate-900">Como ativar sua assinatura</h2><p className="mt-1 text-sm text-slate-600">Você conclui tudo em poucos passos. O pagamento acontece no ambiente seguro do Asaas.</p><div className="mt-5 grid gap-4 md:grid-cols-3"><div className="flex gap-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-700 text-sm font-bold text-white">1</span><div><p className="font-semibold text-slate-900">Escolha o período</p><p className="text-sm text-slate-600">Quanto maior o período, menor o valor mensal.</p></div></div><div className="flex gap-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-700 text-sm font-bold text-white">2</span><div><p className="font-semibold text-slate-900">Informe o CPF ou CNPJ</p><p className="text-sm text-slate-600">Usamos o documento somente para identificar o pagador.</p></div></div><div className="flex gap-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-700 text-sm font-bold text-white">3</span><div><p className="font-semibold text-slate-900">Finalize com segurança</p><p className="text-sm text-slate-600">Você será levado ao checkout do Asaas.</p></div></div></div></CardContent></Card>
 
+      {pending && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="space-y-3 p-6">
+            <h2 className="font-semibold text-slate-900">Pagamento em andamento</h2>
+            <p className="text-sm text-slate-700">
+              Seu plano {priceOptions.find(option => option.code === pending.priceCode)?.name || pending.priceCode} aguarda confirmação.{' '}
+              {pending.billingType === 'CREDIT_CARD' ? 'Conclua o checkout com cartão no Asaas.' : `Pague a cobrança por ${pending.billingType === 'PIX' ? 'Pix' : 'boleto'} para ativar a assinatura.`}
+            </p>
+            {pending.checkoutUrl && <Button onClick={() => window.location.assign(pending.checkoutUrl!)}>Continuar pagamento</Button>}
+            {pending.pixImage && <img className="h-48 w-48" src={`data:image/png;base64,${pending.pixImage}`} alt="QR Code Pix da cobrança" />}
+            {pending.pixPayload && (
+              <div>
+                <p className="text-xs font-medium text-slate-700">Pix copia e cola</p>
+                <code className="block break-all rounded bg-white p-2 text-xs">{pending.pixPayload}</code>
+                <Button variant="outline" className="mt-2" onClick={() => void navigator.clipboard.writeText(pending.pixPayload!).then(() => showToast('Código Pix copiado.', 'success')).catch(() => showToast('Não foi possível copiar o código Pix.', 'error'))}>Copiar código Pix</Button>
+              </div>
+            )}
+            {!pending.checkoutUrl && !pending.pixPayload && <p className="text-sm text-amber-800">O link ainda não está disponível. Atualize o estado em instantes; se continuar assim, contate o suporte.</p>}
+            <div><Button variant="outline" disabled={loadingBilling} onClick={handleRefreshBilling}>Atualizar estado</Button></div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card><CardHeader><CardTitle>Uso do plano</CardTitle></CardHeader><CardContent className="grid gap-4 md:grid-cols-3">{([['Usuários', usage?.users || 0, currentPlan.limits.maxUsers], ['Contatos', usage?.contacts || 0, currentPlan.limits.maxContacts], ['Armazenamento', usage?.storageBytes || 0, currentPlan.limits.maxStorageBytes]] as const).map(([label, value, limit]) => { const percent = Math.min(100, Math.round((value / limit) * 100)); const display = label === 'Armazenamento' ? `${(value / 1024 / 1024).toFixed(1)} MB de ${(limit / 1024 / 1024 / 1024).toFixed(1)} GB` : `${value.toLocaleString('pt-BR')} de ${limit.toLocaleString('pt-BR')}`; return <div key={label} className={percent >= 80 ? 'rounded-lg border border-amber-200 bg-amber-50 p-4' : 'rounded-lg bg-slate-50 p-4'}><div className="flex justify-between text-sm"><span className="font-semibold text-slate-800">{label}</span><span>{percent}%</span></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200"><div className={percent >= 100 ? 'h-full bg-red-600' : percent >= 80 ? 'h-full bg-amber-500' : 'h-full bg-brand-600'} style={{ width: `${percent}%` }} /></div><p className="mt-2 text-xs text-slate-500">{display}</p></div>; })}</CardContent></Card>
+
+      {!office?.billingSubscriptionId && canManage && !pending && (
+        <Card>
+          <CardHeader><CardTitle>Dados do pagador e pagamento</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <label className="block text-sm font-medium text-slate-700">CPF ou CNPJ
+              <input className="mt-1 h-10 w-full max-w-sm rounded-md border border-slate-300 px-3" inputMode="numeric" placeholder="Somente números" value={cpfCnpj} onChange={event => setCpfCnpj(event.target.value.replace(/\D/g, '').slice(0, 14))} />
+            </label>
+            <label className="block text-sm font-medium text-slate-700">Forma de pagamento
+              <select className="mt-1 h-10 w-full max-w-sm rounded-md border border-slate-300 bg-white px-3" value={newBillingType} onChange={event => setNewBillingType(event.target.value as typeof newBillingType)}>
+                <option value="">Selecione uma forma de pagamento</option>
+                <option value="PIX">Pix</option>
+                <option value="CREDIT_CARD">Cartão de crédito</option>
+                <option value="BOLETO">Boleto</option>
+              </select>
+            </label>
+            {newBillingType && <p className="text-xs text-slate-600">{newBillingType === 'CREDIT_CARD' ? 'O cartão poderá ser cobrado automaticamente nos próximos períodos.' : `O Asaas gerará uma cobrança por ${newBillingType === 'PIX' ? 'Pix' : 'boleto'} a cada período; você deverá pagá-la para manter a assinatura ativa.`}</p>}
+            <p className="text-xs text-slate-500">O CPF ou CNPJ é enviado ao backend e ao Asaas; não é salvo no navegador nem no Firestore.</p>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 md:grid-cols-3">
         {priceOptions.map(price => {
@@ -126,7 +191,7 @@ export const Billing = () => {
                 <ul className="mt-5 space-y-2 text-sm text-slate-600">
                   {CORE_PLAN.features.map(feature => <li key={feature} className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />{feature}</li>)}
                 </ul>
-                <Button disabled={!canManage || isCurrent || loadingPlan !== null} onClick={() => handlePlan(price.code)} className="mt-6 w-full">
+                <Button disabled={!canManage || isCurrent || Boolean(pending) || loadingBilling || loadingPlan !== null} onClick={() => handlePlan(price.code)} className="mt-6 w-full">
                   {loadingPlan === price.code ? 'Preparando pagamento...' : isCurrent ? 'Este é seu plano' : 'Continuar com este plano'}
                 </Button>
               </CardContent>
@@ -135,7 +200,6 @@ export const Billing = () => {
         })}
       </div>
 
-      {!office?.billingSubscriptionId && canManage && <Card><CardHeader><CardTitle>Dados do pagador</CardTitle></CardHeader><CardContent><label className="text-sm font-medium text-slate-700">CPF ou CNPJ<input className="mt-1 h-10 w-full max-w-sm rounded-md border border-slate-300 px-3" inputMode="numeric" placeholder="Somente números" value={cpfCnpj} onChange={event => setCpfCnpj(event.target.value.replace(/\D/g, '').slice(0, 14))} /></label><p className="mt-2 text-xs text-slate-500">Enviado diretamente ao backend e ao Asaas; não é salvo no navegador nem no Firestore.</p></CardContent></Card>}
 
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2"><CreditCard className="h-4 w-4" /> Sua assinatura</CardTitle></CardHeader>

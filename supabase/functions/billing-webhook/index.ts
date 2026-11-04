@@ -82,6 +82,19 @@ Deno.serve(async request => {
         if (localSubscription && providerSubscriptionId) await admin.from('billing_subscriptions').update({ provider_subscription_id: providerSubscriptionId, updated_at: new Date().toISOString() }).eq('id', localSubscription.id);
       }
     }
+    // A payment event can arrive before checkout creation has persisted the provider ID.
+    if (!localSubscription && providerSubscriptionId) {
+      const providerRecord = await asaasRequest(`subscriptions/${encodeURIComponent(providerSubscriptionId)}`).catch(() => null);
+      const providerReference = safeText(providerRecord?.externalReference || '', 120);
+      if (providerReference) {
+        const { data: localCheckout } = await admin.from('billing_checkout_sessions').select('subscription_id').eq('id', providerReference).maybeSingle();
+        if (localCheckout?.subscription_id) {
+          const result = await admin.from('billing_subscriptions').select('id, office_id, price_code, current_period_start, current_period_end').eq('id', localCheckout.subscription_id).maybeSingle();
+          localSubscription = result.data;
+          if (localSubscription) await requireDb(admin.from('billing_subscriptions').update({ provider_subscription_id: providerSubscriptionId, updated_at: new Date().toISOString() }).eq('id', localSubscription.id), 'provider_subscription_link_failed');
+        }
+      }
+    }
 
     if (payment?.id && localSubscription) {
       const status = safeText(payment.status, 80); const now = new Date().toISOString();

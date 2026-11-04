@@ -2,9 +2,10 @@ import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@s
 import { supabase } from '../lib/supabase';
 import type { PlanCode } from '../types';
 
-export interface CheckoutResponse { checkoutUrl: string; checkoutId?: string; }
+export interface CheckoutResponse { checkoutUrl?: string; checkoutId?: string; status: 'PENDING'; code?: 'payment_link_pending'; }
+export interface PendingCheckout { priceCode: string; billingType: 'PIX' | 'BOLETO' | 'CREDIT_CARD'; checkoutUrl: string | null; expiresAt: string | null; pixPayload: string | null; pixImage: string | null; }
 export interface BillingPayment { id: string; status: string; billingType: string | null; dueDate: string | null; value: number; invoiceUrl: string | null; bankSlipUrl: string | null; paidAt?: string | null; }
-export interface BillingSummary { productCode: string; priceCode: string | null; status: string; billingType: string | null; currentPeriodStart: string | null; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean; nextDueDate: string | null; payments: BillingPayment[]; }
+export interface BillingSummary { productCode: string; priceCode: string | null; status: string; billingType: string | null; currentPeriodStart: string | null; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean; nextDueDate: string | null; pending: PendingCheckout | null; payments: BillingPayment[]; }
 
 const billingError = async (error: unknown, fallback: string) => {
   if (error instanceof FunctionsHttpError) {
@@ -13,6 +14,8 @@ const billingError = async (error: unknown, fallback: string) => {
     if (status === 401) return new Error('Sua sessão expirou. Entre novamente para continuar.');
     if (status === 403) return new Error('Sua conta não possui permissão para gerenciar a assinatura.');
     if (status === 409 && payload?.code === 'checkout_for_other_price') return new Error(payload.error);
+    if (status === 409 && payload?.code === 'checkout_for_other_method') return new Error(payload.error);
+    if (status === 409 && payload?.code === 'checkout_reconciliation_required') return new Error(payload.error);
     if (status === 409 && payload?.code === 'subscription_already_exists') return new Error(payload.error);
     if (status === 409) return new Error('Este plano está temporariamente indisponível. Tente novamente.');
     if (status === 502) return new Error('O serviço de pagamento está temporariamente indisponível. Tente novamente em instantes.');
@@ -21,7 +24,7 @@ const billingError = async (error: unknown, fallback: string) => {
   return new Error(fallback);
 };
 
-export const createCheckout = async (priceCode: string, cpfCnpj: string, billingType: 'PIX' | 'BOLETO' | 'CREDIT_CARD' = 'CREDIT_CARD'): Promise<CheckoutResponse> => {
+export const createCheckout = async (priceCode: string, cpfCnpj: string, billingType: 'PIX' | 'BOLETO' | 'CREDIT_CARD'): Promise<CheckoutResponse> => {
   const { data, error } = await supabase.functions.invoke('billing-create-checkout', { body: { priceCode, billingType, payer: { cpfCnpj } } });
   if (error) throw await billingError(error, 'Não foi possível iniciar o pagamento. Tente novamente.');
   return data as CheckoutResponse;

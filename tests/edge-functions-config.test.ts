@@ -177,6 +177,22 @@ test('Asaas recurring Checkout follows the current contract and persists correla
   assert.ok(localInsert >= 0 && remoteCheckout > localInsert, 'local correlation must exist before the remote Checkout');
 });
 
+test('Billing creation keeps the payer-selected method and a recoverable provider link', () => {
+  const page = readFileSync(resolve(process.cwd(), 'src', 'pages', 'Billing.tsx'), 'utf8');
+  const service = readFileSync(resolve(process.cwd(), 'src', 'services', 'supabaseBilling.ts'), 'utf8');
+  const create = source('billing-create-checkout/index.ts');
+  const summary = source('billing-summary/index.ts');
+
+  assert.match(page, /createCheckout\(priceCode, cpfCnpj, newBillingType/);
+  assert.match(page, /Selecione uma forma de pagamento/);
+  assert.doesNotMatch(service, /billingType: 'PIX' \| 'BOLETO' \| 'CREDIT_CARD' = 'CREDIT_CARD'/);
+  assert.match(create, /billingType === 'BOLETO' \|\| billingType === 'PIX'/);
+  assert.match(create, /billingTypes: \['CREDIT_CARD'\]/);
+  assert.match(create, /provider_snapshot: \{ id: providerId, link: checkoutUrl \}/);
+  assert.match(summary, /pixQrCode/);
+  assert.match(source('billing-webhook/index.ts'), /providerRecord\?\.externalReference/);
+});
+
 test('Asaas webhook handles Checkout events and re-enters failed deliveries', () => {
   const code = source('billing-webhook/index.ts');
 
