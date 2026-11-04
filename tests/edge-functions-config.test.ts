@@ -184,7 +184,7 @@ test('Billing creation keeps the payer-selected method and a recoverable provide
   const summary = source('billing-summary/index.ts');
 
   assert.match(page, /createCheckout\(priceCode, cpfCnpj, newBillingType/);
-  assert.match(page, /Selecione uma forma de pagamento/);
+  assert.match(page, /Como você prefere pagar\?/);
   assert.doesNotMatch(service, /billingType: 'PIX' \| 'BOLETO' \| 'CREDIT_CARD' = 'CREDIT_CARD'/);
   assert.match(create, /billingType === 'BOLETO' \|\| billingType === 'PIX'/);
   assert.match(create, /billingTypes: \['CREDIT_CARD'\]/);

@@ -20,7 +20,7 @@ Deno.serve(async request => {
     const body = await request.json().catch(() => ({}));
     const priceCode = String(body.priceCode || '').trim(); const billingType = String(body.billingType || 'CREDIT_CARD').trim(); const document = cpfCnpj(body.payer?.cpfCnpj);
     if (!['core_monthly', 'core_quarterly', 'core_semiannual', 'core_annual'].includes(priceCode)) return json(request, { error: 'Plano de cobrança inválido.', code: 'invalid_price' }, 400);
-    if (!['CREDIT_CARD', 'PIX', 'BOLETO'].includes(billingType) || !validDocument(document)) return json(request, { error: 'Informe um CPF ou CNPJ válido e uma forma de pagamento.', code: 'invalid_payer' }, 400);
+    if (!['CREDIT_CARD', 'PIX', 'BOLETO'].includes(billingType) || (billingType !== 'CREDIT_CARD' && !validDocument(document))) return json(request, { error: 'Informe um CPF ou CNPJ válido e uma forma de pagamento.', code: 'invalid_payer' }, 400);
 
     const [{ data: price, error: priceError }, { data: office, error: officeError }, { data: liveSubscription, error: subscriptionLookupError }] = await Promise.all([
       admin.from('billing_prices').select('code, name, amount_cents, interval_unit').eq('code', priceCode).eq('active', true).maybeSingle(),
@@ -59,6 +59,8 @@ Deno.serve(async request => {
     }
 
     let customerId = '';
+    let localCustomerId: string | null = null;
+    if (billingType !== 'CREDIT_CARD') {
     const { data: currentCustomer } = await admin.from('billing_customers').select('provider_customer_id').eq('office_id', officeId).maybeSingle();
     if (currentCustomer?.provider_customer_id) customerId = String(currentCustomer.provider_customer_id);
     if (!customerId) {
@@ -74,9 +76,12 @@ Deno.serve(async request => {
     const { data: localCustomer, error: customerSaveError } = await admin.from('billing_customers').upsert({ office_id: officeId, provider: 'asaas', provider_customer_id: customerId, document_type: document.length === 14 ? 'CNPJ' : 'CPF', document_last4: document.slice(-4), legal_name: String(body.payer?.name || office.name), billing_email: String(body.payer?.email || office.email), billing_phone: String(body.payer?.mobilePhone || office.whatsapp || '') }, { onConflict: 'office_id' }).select('id').single();
     if (customerSaveError || !localCustomer) throw new Error(`customer_save_failed:${customerSaveError?.code || 'missing_row'}`);
 
+    localCustomerId = String(localCustomer.id);
+    }
+
     sessionId = crypto.randomUUID();
     const nextDueDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    const { data: localSubscription, error: subscriptionError } = await admin.from('billing_subscriptions').insert({ office_id: officeId, customer_id: localCustomer.id, provider: 'asaas', price_code: priceCode, status: 'PENDING', billing_type: billingType, next_due_date: nextDueDate.toISOString().slice(0, 10) }).select('id').single();
+    const { data: localSubscription, error: subscriptionError } = await admin.from('billing_subscriptions').insert({ office_id: officeId, customer_id: localCustomerId, provider: 'asaas', price_code: priceCode, status: 'PENDING', billing_type: billingType, next_due_date: nextDueDate.toISOString().slice(0, 10) }).select('id').single();
     if (subscriptionError?.code === '23505') return json(request, { error: 'Já existe um pagamento em andamento. Atualize a página para continuar.', code: 'subscription_already_exists' }, 409);
     if (subscriptionError || !localSubscription) return json(request, { error: 'Não foi possível registrar a assinatura.', code: 'subscription_save_failed' }, 500);
     subscriptionId = String(localSubscription.id);
@@ -98,7 +103,9 @@ Deno.serve(async request => {
       checkoutUrl = paymentUrl(firstPayment);
     } else {
       const appUrl = Deno.env.get('APP_URL') || 'https://crm.trekio-tecnologia.com.br';
-      const checkout = await asaasRequest('checkouts', { method: 'POST', body: JSON.stringify({ customer: customerId, billingTypes: ['CREDIT_CARD'], chargeTypes: ['RECURRENT'], minutesToExpire: 60, externalReference: sessionId, items: [{ name: `Presença Jurídica — ${price.name}`, description: 'Assinatura do CRM jurídico', quantity: 1, value: Number(price.amount_cents) / 100 }], subscription: { cycle: cycleFor(String(price.interval_unit)), nextDueDate: nextDueDate.toISOString().slice(0, 10) }, callback: { successUrl: `${appUrl}/billing?checkout=success`, cancelUrl: `${appUrl}/billing?checkout=canceled`, expiredUrl: `${appUrl}/billing?checkout=expired` } }) });
+      // The hosted Checkout collects the address. A pre-existing Asaas customer may
+      // lack fields required by Checkout even though subscriptions accept it.
+      const checkout = await asaasRequest('checkouts', { method: 'POST', body: JSON.stringify({ billingTypes: ['CREDIT_CARD'], chargeTypes: ['RECURRENT'], minutesToExpire: 60, externalReference: sessionId, items: [{ name: `Presença Jurídica — ${price.name}`, description: 'Assinatura do CRM jurídico', quantity: 1, value: Number(price.amount_cents) / 100 }], subscription: { cycle: cycleFor(String(price.interval_unit)), nextDueDate: nextDueDate.toISOString().slice(0, 10) }, callback: { successUrl: `${appUrl}/billing?checkout=success`, cancelUrl: `${appUrl}/billing?checkout=canceled`, expiredUrl: `${appUrl}/billing?checkout=expired` } }) });
       providerId = String(checkout.id || ''); checkoutUrl = safeAsaasUrl(checkout.link);
       if (!providerId || !checkoutUrl) throw new Error('asaas_checkout_response_incomplete');
     }

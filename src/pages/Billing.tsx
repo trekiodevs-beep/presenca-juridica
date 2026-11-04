@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2, CreditCard, ExternalLink, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, CreditCard, ExternalLink, ShieldCheck } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -22,6 +22,7 @@ export const Billing = () => {
   const [billingType, setBillingType] = useState<'PIX' | 'BOLETO' | 'CREDIT_CARD'>('PIX');
   const [newBillingType, setNewBillingType] = useState<'PIX' | 'BOLETO' | 'CREDIT_CARD' | ''>('');
   const [loadingBilling, setLoadingBilling] = useState(false);
+  const [selectedPriceCode, setSelectedPriceCode] = useState<string | null>(null);
   const [cpfCnpj, setCpfCnpj] = useState('');
   const [usage, setUsage] = useState<UsageCounter | null>(null);
   const [confirmingCancellation, setConfirmingCancellation] = useState(false);
@@ -76,7 +77,7 @@ export const Billing = () => {
     if (!canManage) return;
     setLoadingPlan(priceCode);
     try {
-      if (!office?.billingSubscriptionId && ![11, 14].includes(cpfCnpj.replace(/\D/g, '').length)) { showToast('Informe um CPF ou CNPJ válido para o pagador.', 'error'); return; }
+      if (!office?.billingSubscriptionId && newBillingType !== 'CREDIT_CARD' && ![11, 14].includes(cpfCnpj.replace(/\D/g, '').length)) { showToast('Informe um CPF ou CNPJ válido para o pagador.', 'error'); return; }
       if (!office?.billingSubscriptionId && !newBillingType) { showToast('Escolha a forma de pagamento para continuar.', 'error'); return; }
       const response = office?.billingSubscriptionId && office.subscriptionStatus !== 'CANCELED' ? await changePlan(priceCode) : await createCheckout(priceCode, cpfCnpj, newBillingType as 'PIX' | 'BOLETO' | 'CREDIT_CARD');
       if ('checkoutUrl' in response && response.checkoutUrl) {
@@ -84,6 +85,7 @@ export const Billing = () => {
       } else {
         if ('status' in response && response.status === 'PENDING') {
           setPending((await getBillingSummary()).pending);
+          setSelectedPriceCode(null);
           showToast('Cobrança criada. O link de pagamento está sendo preparado.', 'success');
         } else showToast('Plano atualizado. A próxima cobrança seguirá o novo período.', 'success');
       }
@@ -127,8 +129,6 @@ export const Billing = () => {
         </CardContent>
       </Card>
 
-      <Card className="border-brand-200 bg-brand-50/40"><CardContent className="p-6"><h2 className="text-lg font-bold text-slate-900">Como ativar sua assinatura</h2><p className="mt-1 text-sm text-slate-600">Você conclui tudo em poucos passos. O pagamento acontece no ambiente seguro do Asaas.</p><div className="mt-5 grid gap-4 md:grid-cols-3"><div className="flex gap-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-700 text-sm font-bold text-white">1</span><div><p className="font-semibold text-slate-900">Escolha o período</p><p className="text-sm text-slate-600">Quanto maior o período, menor o valor mensal.</p></div></div><div className="flex gap-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-700 text-sm font-bold text-white">2</span><div><p className="font-semibold text-slate-900">Informe o CPF ou CNPJ</p><p className="text-sm text-slate-600">Usamos o documento somente para identificar o pagador.</p></div></div><div className="flex gap-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-700 text-sm font-bold text-white">3</span><div><p className="font-semibold text-slate-900">Finalize com segurança</p><p className="text-sm text-slate-600">Você será levado ao checkout do Asaas.</p></div></div></div></CardContent></Card>
-
       {pending && (
         <Card className="border-amber-200 bg-amber-50">
           <CardContent className="space-y-3 p-6">
@@ -152,30 +152,44 @@ export const Billing = () => {
         </Card>
       )}
 
-      <Card><CardHeader><CardTitle>Uso do plano</CardTitle></CardHeader><CardContent className="grid gap-4 md:grid-cols-3">{([['Usuários', usage?.users || 0, currentPlan.limits.maxUsers], ['Contatos', usage?.contacts || 0, currentPlan.limits.maxContacts], ['Armazenamento', usage?.storageBytes || 0, currentPlan.limits.maxStorageBytes]] as const).map(([label, value, limit]) => { const percent = Math.min(100, Math.round((value / limit) * 100)); const display = label === 'Armazenamento' ? `${(value / 1024 / 1024).toFixed(1)} MB de ${(limit / 1024 / 1024 / 1024).toFixed(1)} GB` : `${value.toLocaleString('pt-BR')} de ${limit.toLocaleString('pt-BR')}`; return <div key={label} className={percent >= 80 ? 'rounded-lg border border-amber-200 bg-amber-50 p-4' : 'rounded-lg bg-slate-50 p-4'}><div className="flex justify-between text-sm"><span className="font-semibold text-slate-800">{label}</span><span>{percent}%</span></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200"><div className={percent >= 100 ? 'h-full bg-red-600' : percent >= 80 ? 'h-full bg-amber-500' : 'h-full bg-brand-600'} style={{ width: `${percent}%` }} /></div><p className="mt-2 text-xs text-slate-500">{display}</p></div>; })}</CardContent></Card>
 
-      {!office?.billingSubscriptionId && canManage && !pending && (
-        <Card>
-          <CardHeader><CardTitle>Dados do pagador e pagamento</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <label className="block text-sm font-medium text-slate-700">CPF ou CNPJ
-              <input className="mt-1 h-10 w-full max-w-sm rounded-md border border-slate-300 px-3" inputMode="numeric" placeholder="Somente números" value={cpfCnpj} onChange={event => setCpfCnpj(event.target.value.replace(/\D/g, '').slice(0, 14))} />
-            </label>
-            <label className="block text-sm font-medium text-slate-700">Forma de pagamento
-              <select className="mt-1 h-10 w-full max-w-sm rounded-md border border-slate-300 bg-white px-3" value={newBillingType} onChange={event => setNewBillingType(event.target.value as typeof newBillingType)}>
-                <option value="">Selecione uma forma de pagamento</option>
-                <option value="PIX">Pix</option>
-                <option value="CREDIT_CARD">Cartão de crédito</option>
-                <option value="BOLETO">Boleto</option>
-              </select>
-            </label>
-            {newBillingType && <p className="text-xs text-slate-600">{newBillingType === 'CREDIT_CARD' ? 'O cartão poderá ser cobrado automaticamente nos próximos períodos.' : `O Asaas gerará uma cobrança por ${newBillingType === 'PIX' ? 'Pix' : 'boleto'} a cada período; você deverá pagá-la para manter a assinatura ativa.`}</p>}
-            <p className="text-xs text-slate-500">O CPF ou CNPJ é enviado ao backend e ao Asaas; não é salvo no navegador nem no Firestore.</p>
+
+      {selectedPriceCode && !pending && (
+        <Card className="mx-auto max-w-3xl border-brand-200">
+          <CardContent className="p-6 sm:p-8">
+            <Button variant="outline" disabled={loadingPlan !== null} onClick={() => setSelectedPriceCode(null)}><ArrowLeft className="mr-2 h-4 w-4" />Voltar aos planos</Button>
+            <div className="mt-6 border-b border-slate-100 pb-6">
+              <p className="text-sm font-medium text-brand-700">Plano escolhido</p>
+              <h2 className="mt-1 text-2xl font-bold text-slate-950">{priceOptions.find(price => price.code === selectedPriceCode)?.name}</h2>
+              <p className="mt-2 text-slate-600">{priceOptions.find(price => price.code === selectedPriceCode)?.detail}</p>
+              <p className="mt-3 text-2xl font-bold text-slate-950">R$ {((priceOptions.find(price => price.code === selectedPriceCode)?.amountCents || 0) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}<span className="ml-2 text-sm font-normal text-slate-500">por período</span></p>
+            </div>
+            <fieldset className="mt-6">
+              <legend className="text-lg font-semibold text-slate-950">Como você prefere pagar?</legend>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                {([{ value: 'CREDIT_CARD', label: 'Cartão de crédito', detail: 'Renovação automática' }, { value: 'PIX', label: 'Pix', detail: 'Pague a cada período' }, { value: 'BOLETO', label: 'Boleto', detail: 'Pague a cada período' }] as const).map(method => (
+                  <label key={method.value} className={'flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors ' + (newBillingType === method.value ? 'border-brand-600 bg-brand-50 ring-1 ring-brand-600' : 'border-slate-200 hover:border-brand-300')}>
+                    <input type="radio" name="checkout-method" value={method.value} checked={newBillingType === method.value} onChange={() => setNewBillingType(method.value)} disabled={loadingPlan !== null} className="mt-1 accent-brand-700" />
+                    <span><span className="block text-sm font-semibold text-slate-900">{method.label}</span><span className="mt-1 block text-xs text-slate-500">{method.detail}</span></span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            {newBillingType && newBillingType !== 'CREDIT_CARD' && (
+              <label className="mt-6 block text-sm font-medium text-slate-700">CPF ou CNPJ do pagador
+                <input className="mt-2 block h-11 w-full rounded-lg border border-slate-300 px-3 sm:max-w-sm" inputMode="numeric" autoComplete="off" placeholder="Somente números" value={cpfCnpj} onChange={event => setCpfCnpj(event.target.value.replace(/\D/g, '').slice(0, 14))} />
+                <span className="mt-2 block text-xs font-normal text-slate-500">Necessário para emitir a cobrança. A cada período, você recebe uma nova cobrança para pagar.</span>
+              </label>
+            )}
+            {newBillingType === 'CREDIT_CARD' && <p className="mt-6 text-sm text-slate-600">Você preencherá seus dados e os dados do cartão no checkout seguro do Asaas.</p>}
+            <Button className="mt-8 w-full" disabled={!newBillingType || loadingPlan !== null} onClick={() => handlePlan(selectedPriceCode)}>{loadingPlan ? 'Preparando pagamento...' : 'Continuar para pagamento'}</Button>
+            <p className="mt-3 flex items-center justify-center gap-2 text-xs text-slate-500"><ShieldCheck className="h-4 w-4" />Pagamento processado com segurança pelo Asaas</p>
           </CardContent>
         </Card>
       )}
 
-      <div className="grid gap-4 md:grid-cols-3">
+      {!selectedPriceCode && <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+
         {priceOptions.map(price => {
           const isCurrent = office?.priceCode === price.code && office.subscriptionStatus === 'ACTIVE';
           return (
@@ -191,15 +205,17 @@ export const Billing = () => {
                 <ul className="mt-5 space-y-2 text-sm text-slate-600">
                   {CORE_PLAN.features.map(feature => <li key={feature} className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />{feature}</li>)}
                 </ul>
-                <Button disabled={!canManage || isCurrent || Boolean(pending) || loadingBilling || loadingPlan !== null} onClick={() => handlePlan(price.code)} className="mt-6 w-full">
+                <Button disabled={!canManage || isCurrent || Boolean(pending) || loadingBilling || loadingPlan !== null} onClick={() => { if (office?.billingSubscriptionId && office.subscriptionStatus !== 'CANCELED') void handlePlan(price.code); else { setNewBillingType(''); setSelectedPriceCode(price.code); } }} className="mt-6 w-full">
                   {loadingPlan === price.code ? 'Preparando pagamento...' : isCurrent ? 'Este é seu plano' : 'Continuar com este plano'}
                 </Button>
               </CardContent>
             </Card>
           );
         })}
-      </div>
+      </div>}
 
+
+<Card><CardHeader><CardTitle>Uso do plano</CardTitle></CardHeader><CardContent className="grid gap-4 md:grid-cols-3">{([['Usuários', usage?.users || 0, currentPlan.limits.maxUsers], ['Contatos', usage?.contacts || 0, currentPlan.limits.maxContacts], ['Armazenamento', usage?.storageBytes || 0, currentPlan.limits.maxStorageBytes]] as const).map(([label, value, limit]) => { const percent = Math.min(100, Math.round((value / limit) * 100)); const display = label === 'Armazenamento' ? `${(value / 1024 / 1024).toFixed(1)} MB de ${(limit / 1024 / 1024 / 1024).toFixed(1)} GB` : `${value.toLocaleString('pt-BR')} de ${limit.toLocaleString('pt-BR')}`; return <div key={label} className={percent >= 80 ? 'rounded-lg border border-amber-200 bg-amber-50 p-4' : 'rounded-lg bg-slate-50 p-4'}><div className="flex justify-between text-sm"><span className="font-semibold text-slate-800">{label}</span><span>{percent}%</span></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200"><div className={percent >= 100 ? 'h-full bg-red-600' : percent >= 80 ? 'h-full bg-amber-500' : 'h-full bg-brand-600'} style={{ width: `${percent}%` }} /></div><p className="mt-2 text-xs text-slate-500">{display}</p></div>; })}</CardContent></Card>
 
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2"><CreditCard className="h-4 w-4" /> Sua assinatura</CardTitle></CardHeader>

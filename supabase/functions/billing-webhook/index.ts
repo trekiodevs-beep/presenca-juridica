@@ -63,11 +63,23 @@ Deno.serve(async request => {
         const matchedProviderSubscriptions = providerSubscriptions && Array.isArray(providerSubscriptions.data) ? providerSubscriptions.data : [];
         const providerSubscription = linkedSubscriptionId ? providerSubscriptions : matchedProviderSubscriptions.length === 1 ? matchedProviderSubscriptions[0] : null;
         if (!providerSubscription?.id) throw new Error('checkout_subscription_correlation_failed');
+        const providerCustomerId = safeText(providerSubscription.customer || (matchedPayments.length === 1 ? matchedPayments[0]?.customer : ''), 120);
+        if (!providerCustomerId) throw new Error('checkout_customer_correlation_failed');
+        const providerCustomer = await asaasRequest('customers/' + encodeURIComponent(providerCustomerId));
+        const document = String(providerCustomer.cpfCnpj || '').replace(/\D/g, '');
+        if (![11, 14].includes(document.length)) throw new Error('checkout_customer_document_missing');
+        const customerResult = await requireDb(admin.from('billing_customers').upsert({
+          office_id: localCheckout.office_id, provider: 'asaas', provider_customer_id: providerCustomerId,
+          document_type: document.length === 14 ? 'CNPJ' : 'CPF', document_last4: document.slice(-4),
+          legal_name: safeText(providerCustomer.name, 255), billing_email: safeText(providerCustomer.email, 255),
+          billing_phone: safeText(providerCustomer.mobilePhone || providerCustomer.phone, 40), updated_at: new Date().toISOString(),
+        }, { onConflict: 'office_id' }).select('id').single(), 'checkout_customer_link_failed');
+        if (!customerResult.data?.id) throw new Error('checkout_customer_link_missing');
         const start = checkout.subscription?.nextDueDate ? new Date(checkout.subscription.nextDueDate) : new Date();
         const { data: price } = await admin.from('billing_prices').select('product_code, interval_unit').eq('code', localCheckout.price_code).single();
         const end = addPeriod(start, String(price?.interval_unit || 'MONTHLY'));
         const now = new Date().toISOString();
-        await requireDb(admin.from('billing_subscriptions').update({ status: 'ACTIVE', activated_at: now, last_payment_at: now, current_period_start: start.toISOString(), current_period_end: end.toISOString(), next_due_date: start.toISOString().slice(0, 10), provider_subscription_id: providerSubscription?.id || null, provider_snapshot: providerSubscription || checkout, updated_at: now }).eq('id', localCheckout.subscription_id), 'subscription_activation_failed');
+        await requireDb(admin.from('billing_subscriptions').update({ customer_id: customerResult.data.id, status: 'ACTIVE', activated_at: now, last_payment_at: now, current_period_start: start.toISOString(), current_period_end: end.toISOString(), next_due_date: start.toISOString().slice(0, 10), provider_subscription_id: providerSubscription?.id || null, provider_snapshot: providerSubscription || checkout, updated_at: now }).eq('id', localCheckout.subscription_id), 'subscription_activation_failed');
         await requireDb(admin.from('offices').update({ plan_code: 'core', product_code: price?.product_code || 'core', price_code: localCheckout.price_code, subscription_status: 'ACTIVE', billing_subscription_id: localCheckout.subscription_id, billing_provider: 'asaas', billing_current_period_start: start.toISOString(), billing_current_period_end: end.toISOString(), billing_cancel_at_period_end: false, updated_at: now }).eq('id', localCheckout.office_id), 'office_activation_failed');
       }
       if (['CHECKOUT_CANCELED', 'CHECKOUT_EXPIRED'].includes(eventType) && localCheckout.subscription_id) await requireDb(admin.from('billing_subscriptions').update({ status: 'CANCELED', cancellation_reason: checkoutStatus === 'EXPIRED' ? 'Checkout expirado' : 'Checkout cancelado', updated_at: new Date().toISOString() }).eq('id', localCheckout.subscription_id).eq('status', 'PENDING'), 'subscription_checkout_close_failed');
@@ -76,14 +88,14 @@ Deno.serve(async request => {
     const providerSubscriptionId = safeText(payment?.subscription || subscription?.id || '', 120) || null;
     let localSubscription: any = null;
     if (providerSubscriptionId) {
-      const result = await admin.from('billing_subscriptions').select('id, office_id, price_code, current_period_start, current_period_end').eq('provider_subscription_id', providerSubscriptionId).maybeSingle();
+      const result = await admin.from('billing_subscriptions').select('id, office_id, customer_id, price_code, current_period_start, current_period_end').eq('provider_subscription_id', providerSubscriptionId).maybeSingle();
       localSubscription = result.data;
     }
     const externalReference = safeText(payment?.externalReference || subscription?.externalReference || '', 120);
     if (!localSubscription && externalReference) {
       const { data: localCheckout } = await admin.from('billing_checkout_sessions').select('subscription_id').eq('id', externalReference).maybeSingle();
       if (localCheckout?.subscription_id) {
-        const result = await admin.from('billing_subscriptions').select('id, office_id, price_code, current_period_start, current_period_end').eq('id', localCheckout.subscription_id).maybeSingle();
+        const result = await admin.from('billing_subscriptions').select('id, office_id, customer_id, price_code, current_period_start, current_period_end').eq('id', localCheckout.subscription_id).maybeSingle();
         localSubscription = result.data;
         if (localSubscription && providerSubscriptionId) await admin.from('billing_subscriptions').update({ provider_subscription_id: providerSubscriptionId, updated_at: new Date().toISOString() }).eq('id', localSubscription.id);
       }
@@ -95,7 +107,7 @@ Deno.serve(async request => {
       if (providerReference) {
         const { data: localCheckout } = await admin.from('billing_checkout_sessions').select('subscription_id').eq('id', providerReference).maybeSingle();
         if (localCheckout?.subscription_id) {
-          const result = await admin.from('billing_subscriptions').select('id, office_id, price_code, current_period_start, current_period_end').eq('id', localCheckout.subscription_id).maybeSingle();
+          const result = await admin.from('billing_subscriptions').select('id, office_id, customer_id, price_code, current_period_start, current_period_end').eq('id', localCheckout.subscription_id).maybeSingle();
           localSubscription = result.data;
           if (localSubscription) await requireDb(admin.from('billing_subscriptions').update({ provider_subscription_id: providerSubscriptionId, updated_at: new Date().toISOString() }).eq('id', localSubscription.id), 'provider_subscription_link_failed');
         }
@@ -106,6 +118,7 @@ Deno.serve(async request => {
       const status = safeText(payment.status, 80); const now = new Date().toISOString();
       await requireDb(admin.from('billing_payments').upsert({ office_id: localSubscription.office_id, subscription_id: localSubscription.id, provider_payment_id: safeText(payment.id, 120), provider_subscription_id: providerSubscriptionId, status, billing_type: payment.billingType || null, amount_cents: Math.round(Number(payment.value || 0) * 100), net_amount_cents: payment.netValue == null ? null : Math.round(Number(payment.netValue) * 100), due_date: payment.dueDate || null, paid_at: payment.paymentDate || payment.clientPaymentDate || null, confirmed_at: ['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'].includes(status) ? now : null, refunded_at: ['REFUNDED', 'PARTIALLY_REFUNDED'].includes(status) ? now : null, invoice_url: payment.invoiceUrl || null, bank_slip_url: payment.bankSlipUrl || null, description: safeText(payment.description, 500), provider_snapshot: payment, updated_at: now }, { onConflict: 'provider_payment_id' }), 'payment_upsert_failed');
       if (['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'].includes(status)) {
+        if (!localSubscription.customer_id) throw new Error('checkout_customer_link_pending');
         const { data: price } = await admin.from('billing_prices').select('interval_unit').eq('code', localSubscription.price_code).single();
         const periodStart = payment.dueDate ? new Date(`${payment.dueDate}T00:00:00.000Z`) : new Date(now);
         const periodEnd = addPeriod(periodStart, String(price?.interval_unit || 'MONTHLY'));
